@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Component } from "react";
-import { auth, db, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription } from "./firebase.js";
+import { auth, db, firebaseError, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
@@ -1763,6 +1763,38 @@ export default function App() {
       <div style={{ color: C.dim, fontSize: 12, marginBottom: 24 }}>Personal Cybersecurity Platform</div>
       <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 14 }} />
       <div style={{ color: C.dim, fontSize: 12 }}>{message}</div>
+    </div>
+  );
+
+  // Firebase not configured — show setup instructions
+  if (firebaseError) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", padding: 20 }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');`}</style>
+      <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.orange}, ${C.red})`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+        <I.Alert s={28} style={{ color: "#fff" }} />
+      </div>
+      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 20, fontWeight: 700, color: C.bright, letterSpacing: "0.06em", marginBottom: 6 }}>AGENTSLOCK</div>
+      <div style={{ color: C.dim, fontSize: 12, marginBottom: 24 }}>Configuration Required</div>
+      <Card style={{ maxWidth: 440, width: "100%" }}>
+        <div style={{ color: C.red, fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Firebase Not Connected</div>
+        <div style={{ color: C.text, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
+          The app needs Firebase environment variables to run. Add these to your <span style={{ color: C.green, fontWeight: 600 }}>Vercel project settings</span> (Settings → Environment Variables):
+        </div>
+        <div style={{ background: C.bg, borderRadius: 8, padding: 14, fontFamily: "'Fira Code', monospace", fontSize: 11, color: C.cyan, lineHeight: 2 }}>
+          {["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID", "VITE_FIREBASE_STORAGE_BUCKET", "VITE_FIREBASE_MESSAGING_SENDER_ID", "VITE_FIREBASE_APP_ID"].map(v => (
+            <div key={v}>{v}=<span style={{ color: C.dim }}>your_value</span></div>
+          ))}
+          <div style={{ marginTop: 8, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+            VITE_PAYPAL_CLIENT_ID=<span style={{ color: C.dim }}>your_value</span>{"\n"}
+            VITE_PAYPAL_PLAN_ID=<span style={{ color: C.dim }}>your_value</span>
+          </div>
+        </div>
+        <div style={{ color: C.dim, fontSize: 11, marginTop: 12 }}>After adding them, redeploy on Vercel. Get these values from your <a href="https://console.firebase.google.com/" target="_blank" rel="noopener" style={{ color: C.blue }}>Firebase Console</a> → Project Settings.</div>
+        <div style={{ marginTop: 16 }}>
+          <Btn onClick={() => window.location.reload()} color={C.green} style={{ width: "100%", justifyContent: "center" }}><I.Refresh /> Refresh Page</Btn>
+        </div>
+      </Card>
+      <div style={{ color: C.dim, fontSize: 10, marginTop: 20, fontFamily: "'Fira Code', monospace", padding: "6px 10px", background: C.bgCard, borderRadius: 4 }}>{firebaseError}</div>
     </div>
   );
 

@@ -85,7 +85,8 @@
         var s = document.getElementById('splash');
         if (s) {
           s.className = 'error';
-          s.querySelector('.status').textContent = 'Taking too long — check your connection and refresh';
+          var statusEl = s.querySelector('.status');
+          statusEl.innerHTML = 'Taking too long — check your connection<br><button onclick="window.location.reload()" style="margin-top:12px;background:#00e87b15;border:1px solid #00e87b40;color:#00e87b;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">Refresh Page</button>';
         }
       }, 15000);
 

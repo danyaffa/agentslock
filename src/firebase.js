@@ -12,12 +12,32 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Check if Firebase config is present (env vars set during build)
+const hasConfig = firebaseConfig.apiKey && firebaseConfig.projectId;
+
+// Initialize Firebase safely — if env vars are missing, the app still loads
+let app = null;
+let auth = null;
+let db = null;
+let firebaseError = null;
+
+try {
+  if (!hasConfig) {
+    throw new Error("Firebase environment variables are not configured. Add VITE_FIREBASE_* to your Vercel environment variables and redeploy.");
+  }
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (e) {
+  firebaseError = e.message || "Firebase failed to initialize";
+  console.error("Firebase init error:", e);
+}
+
+export { auth, db, firebaseError };
 
 // ─── Auth helpers ────────────────────────────────────────────────────────────
 export async function signUp(email, password, displayName) {
+  if (!auth) throw new Error("Firebase not configured");
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
   // Initialize user document in Firestore
@@ -37,25 +57,34 @@ export async function signUp(email, password, displayName) {
 }
 
 export async function logIn(email, password) {
+  if (!auth) throw new Error("Firebase not configured");
   const cred = await signInWithEmailAndPassword(auth, email, password);
   return cred.user;
 }
 
 export async function logOut() {
+  if (!auth) return;
   await signOut(auth);
 }
 
 export function onAuth(callback) {
+  if (!auth) {
+    // If Firebase isn't available, immediately call back with null user
+    callback(null);
+    return () => {};
+  }
   return onAuthStateChanged(auth, callback);
 }
 
 // ─── Firestore helpers ───────────────────────────────────────────────────────
 export async function loadUserData(uid) {
+  if (!db) return null;
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? snap.data() : null;
 }
 
 export async function saveUserData(uid, field, value) {
+  if (!db) return;
   try {
     await updateDoc(doc(db, "users", uid), { [field]: value });
   } catch (e) {
@@ -68,10 +97,12 @@ export async function saveUserData(uid, field, value) {
 
 // ─── Subscription helpers ───────────────────────────────────────────────────
 export async function saveSubscription(uid, subscriptionData) {
+  if (!db) return;
   await setDoc(doc(db, "users", uid), { subscription: subscriptionData }, { merge: true });
 }
 
 export async function loadSubscription(uid) {
+  if (!db) return null;
   const snap = await getDoc(doc(db, "users", uid));
   if (snap.exists()) {
     return snap.data().subscription || null;
