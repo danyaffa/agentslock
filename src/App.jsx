@@ -80,6 +80,8 @@ const I = {
   Map: icon(<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></>),
   Cpu: icon(<><rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" /></>),
   Apple: icon(<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11" />),
+  HelpCircle: icon(<><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></>),
+  Smartphone: icon(<><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></>),
 };
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
@@ -1632,6 +1634,209 @@ function IncidentTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TAB 12: HELP & FAQ — How to Use, FAQ, Install App
+// ═══════════════════════════════════════════════════════════════════════════════
+function HelpTab({ installPrompt, setInstallPrompt }) {
+  const [expandedFaq, setExpandedFaq] = useState(null);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === "accepted") setInstallPrompt(null);
+  };
+
+  const detectPlatform = () => {
+    const ua = navigator.userAgent || "";
+    if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return "ios";
+    if (/Android/.test(ua)) return "android";
+    if (/Macintosh|Mac OS/.test(ua)) return "mac";
+    if (/Windows/.test(ua)) return "windows";
+    if (/Linux/.test(ua)) return "linux";
+    return "desktop";
+  };
+  const platform = detectPlatform();
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+
+  const FAQ_ITEMS = [
+    {
+      q: "Is it advisable to add real-time virus, malware, or ransomware blocking?",
+      a: `AgentsLock is a web-based cybersecurity dashboard that runs in your browser. As a Progressive Web App (PWA), it operates within the browser sandbox and does not have the low-level system access required to intercept files, scan memory, or block executables in real time the way a native antivirus does.\n\nHowever, AgentsLock strongly complements your existing antivirus by:\n\n• Detecting if your credentials have been exposed in data breaches\n• Guiding you through device hardening (enabling Defender, BitLocker, Play Protect, etc.)\n• Monitoring your accounts for 2FA status and session anomalies\n• Providing an incident response playbook if you are compromised\n\nRecommendation: Keep a dedicated antivirus/anti-malware tool running on each device (Windows Defender, Malwarebytes, Bitdefender, etc.) and use AgentsLock as your security command centre to monitor, audit, and harden everything in one place.`
+    },
+    {
+      q: "Should AgentsLock include a firewall or intrusion detection system (IDS)?",
+      a: `A true firewall or IDS requires deep network-level access — inspecting packets, managing port rules, and monitoring traffic at the operating system or router level. Browsers and PWAs are intentionally sandboxed away from this layer for security reasons.\n\nWhat AgentsLock does instead:\n\n• WebRTC leak blocking — prevents your real IP from being exposed even on a VPN\n• Browser fingerprint spoofing — reduces your trackability across websites\n• Security header analysis — scans websites you visit for missing protections\n• SSL/TLS grading — checks if a site's encryption is properly configured\n• DNS poisoning awareness — guides you to enable encrypted DNS (DoH/DoT)\n• Uptime & endpoint monitoring — alerts you when your websites go down\n\nRecommendation: Use your operating system's built-in firewall (Windows Firewall, macOS Application Firewall, Linux iptables/ufw) or a hardware firewall on your router. For IDS, consider tools like Snort, Suricata, or Pi-hole for DNS-level filtering. AgentsLock will help you verify these are properly configured through its Device Hardening checklist.`
+    },
+    {
+      q: "What makes AgentsLock different from antivirus software?",
+      a: `Antivirus software is reactive — it scans for known threats on your device. AgentsLock is proactive and holistic:\n\n• Breach detection: Checks if your email or passwords have been leaked\n• Password audit: Analyses strength and estimates crack time\n• Account security: Tracks 2FA status across all your accounts\n• Device hardening: 56 checks across Windows, Android, iOS, macOS, and browsers\n• Threat management: Log, track, and resolve security incidents\n• Incident response: Step-by-step emergency playbook\n• Monitoring: Real-time uptime checking for your websites\n• Reports: Export full security audit reports\n\nThink of AgentsLock as your personal security operations centre (SOC) — it doesn't replace your antivirus, it makes sure your entire security posture is covered.`
+    },
+    {
+      q: "Is my data safe in AgentsLock?",
+      a: `Yes. AgentsLock takes multiple precautions:\n\n• Passwords are never sent to any server — breach checks use k-anonymity (only the first 5 characters of a SHA-1 hash are sent)\n• Authentication is handled by Firebase Auth (Google infrastructure)\n• Data is stored in Firestore with per-user access rules\n• A local cache in localStorage provides offline access\n• The app works as a PWA — no data leaves your device unless you are signed in\n• All connections use HTTPS encryption in transit`
+    },
+    {
+      q: "Can I use AgentsLock offline?",
+      a: `Yes. AgentsLock is a Progressive Web App with a service worker that caches the entire application. Once installed, the dashboard loads offline. Features that require network (breach checks, website scanning, uptime monitoring) will work again when connectivity is restored. Your data is cached locally and syncs to the cloud when you reconnect.`
+    },
+  ];
+
+  const INSTALL_INSTRUCTIONS = {
+    android: [
+      "Open agentslock.com in Chrome or Edge",
+      "Tap the three-dot menu (\u22EE) in the top-right corner",
+      "Tap \"Add to Home screen\" or \"Install app\"",
+      "Tap \"Install\" on the confirmation dialog",
+      "AgentsLock will appear on your home screen as a native app",
+    ],
+    ios: [
+      "Open agentslock.com in Safari (required for iOS)",
+      "Tap the Share button (\u2191) at the bottom of the screen",
+      "Scroll down and tap \"Add to Home Screen\"",
+      "Tap \"Add\" in the top-right corner",
+      "AgentsLock will appear on your home screen with its icon",
+    ],
+    windows: [
+      "Open agentslock.com in Chrome, Edge, or Brave",
+      "Look for the install icon (\u2913) in the address bar, or click the three-dot menu",
+      "Select \"Install AgentsLock\" or \"Install app\"",
+      "Click \"Install\" in the confirmation popup",
+      "AgentsLock will open in its own window and appear in your Start menu and taskbar",
+    ],
+    mac: [
+      "Open agentslock.com in Chrome or Edge",
+      "Click the install icon (\u2913) in the address bar, or use the three-dot menu",
+      "Select \"Install AgentsLock\"",
+      "Click \"Install\" to confirm",
+      "AgentsLock will appear in your Applications folder and Launchpad",
+    ],
+    linux: [
+      "Open agentslock.com in Chrome or Chromium",
+      "Click the install icon in the address bar or use the menu",
+      "Select \"Install AgentsLock\"",
+      "Confirm the installation",
+      "AgentsLock will appear in your application launcher",
+    ],
+  };
+
+  const platformLabel = { android: "Android", ios: "iPhone / iPad", windows: "Windows PC", mac: "macOS", linux: "Linux", desktop: "Desktop" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* ── HOW TO USE ── */}
+      <Card glow={C.green}>
+        <Sect title="How to Use AgentsLock" icon={<I.HelpCircle />}>
+          <div style={{ color: C.text, fontSize: 13, lineHeight: 1.8 }}>
+            <p style={{ marginBottom: 12 }}>AgentsLock is your personal cybersecurity command centre. Here is a quick walkthrough to get started:</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { step: "1", title: "Run a Device Scan", desc: "Go to the Overview tab and tap \"Deep Scan Device\". AgentsLock will check your browser for privacy leaks, tracking cookies, WebRTC exposure, and permission issues — and auto-fix what it can.", color: C.green },
+                { step: "2", title: "Check for Breaches", desc: "Open the Breach Check tab. Enter your email to see if it has appeared in known data breaches, or test a password (it never leaves your device) to see if it has been compromised.", color: C.blue },
+                { step: "3", title: "Harden Your Devices", desc: "Visit the Devices tab to go through 56 security checks for Windows, Android, iOS/macOS, Browser, and Network. Check off each item as you complete it.", color: C.cyan },
+                { step: "4", title: "Audit Your Accounts", desc: "Use the Accounts tab to track which services have two-factor authentication enabled. Review sessions, app passwords, and risk levels.", color: C.purple },
+                { step: "5", title: "Scan Websites", desc: "In the Web Scanner tab, enter any URL to check its SSL/TLS grade and security headers. Find out if your sites are properly protected.", color: C.orange },
+                { step: "6", title: "Monitor Uptime", desc: "Add your websites to the Monitoring tab. AgentsLock will check them every 5 minutes and track response times with visual graphs.", color: C.green },
+                { step: "7", title: "Manage Threats", desc: "The Threats tab lets you log, classify, and track security incidents. Filter by severity and status to stay on top of active issues.", color: C.red },
+                { step: "8", title: "Emergency Response", desc: "If you suspect a breach, activate the Incident tab for a guided 6-step emergency response protocol with 23 specific actions.", color: C.red },
+                { step: "9", title: "Export Reports", desc: "Head to the Reports tab to generate and download a complete security audit as a text file — useful for compliance or personal records.", color: C.blue },
+              ].map((item, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "10px 14px", background: C.bg, borderRadius: 8, borderLeft: `3px solid ${item.color}` }}>
+                  <div style={{ minWidth: 28, height: 28, borderRadius: 6, background: `${item.color}18`, color: item.color, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 13 }}>{item.step}</div>
+                  <div>
+                    <div style={{ color: C.bright, fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{item.title}</div>
+                    <div style={{ color: C.dim, fontSize: 12, lineHeight: 1.6 }}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Sect>
+      </Card>
+
+      {/* ── FAQ ── */}
+      <Card>
+        <Sect title="Frequently Asked Questions" icon={<I.HelpCircle />}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {FAQ_ITEMS.map((item, i) => (
+              <div key={i} style={{ background: C.bg, borderRadius: 8, border: `1px solid ${expandedFaq === i ? C.greenBdr : C.border}`, overflow: "hidden", transition: "border-color 0.2s" }}>
+                <button onClick={() => setExpandedFaq(expandedFaq === i ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                  <span style={{ color: expandedFaq === i ? C.green : C.bright, fontSize: 13, fontWeight: 600, paddingRight: 12 }}>{item.q}</span>
+                  <span style={{ color: C.dim, fontSize: 16, transform: expandedFaq === i ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}>{"\u25BE"}</span>
+                </button>
+                {expandedFaq === i && (
+                  <div style={{ padding: "0 14px 14px", color: C.text, fontSize: 12, lineHeight: 1.8, whiteSpace: "pre-line", animation: "fadeIn 0.2s ease" }}>
+                    {item.a}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Sect>
+      </Card>
+
+      {/* ── INSTALL APP ── */}
+      <Card glow={C.blue}>
+        <Sect title="Install AgentsLock on Your Device" icon={<I.Download />}>
+          {isStandalone ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: C.greenDim, border: `1px solid ${C.greenBdr}`, borderRadius: 8 }}>
+              <I.Check s={18} style={{ color: C.green }} />
+              <div>
+                <div style={{ color: C.green, fontWeight: 600, fontSize: 13 }}>App Installed</div>
+                <div style={{ color: C.dim, fontSize: 11, marginTop: 2 }}>You are running AgentsLock as an installed app.</div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ color: C.text, fontSize: 12, lineHeight: 1.7, marginBottom: 14 }}>
+                AgentsLock is a Progressive Web App (PWA) — you can install it on any device for a native app experience. It works offline, loads instantly, and receives automatic updates.
+              </div>
+
+              {/* Native install button (Chrome/Edge on desktop & Android) */}
+              {installPrompt && (
+                <div style={{ marginBottom: 16 }}>
+                  <Btn onClick={handleInstall} color={C.green} style={{ width: "100%", justifyContent: "center", padding: "14px 20px", fontSize: 14 }}>
+                    <I.Download /> Install AgentsLock Now
+                  </Btn>
+                  <div style={{ color: C.dim, fontSize: 10, textAlign: "center", marginTop: 6 }}>One click — no app store required</div>
+                </div>
+              )}
+
+              {/* Platform-specific instructions */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {Object.entries(INSTALL_INSTRUCTIONS).map(([plat, steps]) => (
+                  <div key={plat} style={{ background: C.bg, borderRadius: 8, padding: "14px 16px", border: `1px solid ${plat === platform ? C.greenBdr : C.border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      {plat === "ios" || plat === "mac" ? <I.Apple s={16} style={{ color: C.bright }} /> :
+                       plat === "android" ? <I.Smartphone s={16} style={{ color: C.green }} /> :
+                       <I.Monitor s={16} style={{ color: C.blue }} />}
+                      <span style={{ color: C.bright, fontWeight: 600, fontSize: 13 }}>{platformLabel[plat]}</span>
+                      {plat === platform && <Badge color={C.green}>Your Device</Badge>}
+                    </div>
+                    <ol style={{ paddingLeft: 20, margin: 0 }}>
+                      {steps.map((step, i) => (
+                        <li key={i} style={{ color: C.text, fontSize: 12, lineHeight: 1.8, paddingLeft: 4 }}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 14, padding: "10px 14px", background: C.blueDim, border: `1px solid ${C.blueBdr}`, borderRadius: 8 }}>
+                <div style={{ color: C.blue, fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Supported Devices</div>
+                <div style={{ color: C.text, fontSize: 11, lineHeight: 1.7 }}>
+                  Android phones & tablets, iPhones, iPads, Windows PCs & laptops, macOS, Linux desktops, and Chromebooks. Any device with a modern browser (Chrome, Edge, Safari, Brave, Firefox) can install AgentsLock as an app.
+                </div>
+              </div>
+            </>
+          )}
+        </Sect>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TAB 11: SETTINGS (Phase 3)
 // ═══════════════════════════════════════════════════════════════════════════════
 function SettingsTab({ user, logout, setLegalPage, subscription }) {
@@ -2151,6 +2356,7 @@ const TABS = [
   { id:"monitor", label:"Monitoring", icon:<I.Activity /> },
   { id:"reports", label:"Reports", icon:<I.BarChart /> },
   { id:"incident", label:"Incident", icon:<I.Zap /> },
+  { id:"help", label:"Help & FAQ", icon:<I.HelpCircle /> },
   { id:"settings", label:"Settings", icon:<I.Settings /> },
 ];
 
@@ -2171,8 +2377,16 @@ export default function App() {
   const [legalPage, setLegalPage] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [subLoaded, setSubLoaded] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+
+  // Capture PWA install prompt for cross-platform install button
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
 
   // Load subscription status on login
   useEffect(() => {
@@ -2374,6 +2588,7 @@ export default function App() {
         {tab==="monitor" && <MonitorTab monitors={monitors} setMonitors={setMonitorsAndSave} />}
         {tab==="reports" && <ReportTab checks={checks} threats={threats} accounts={accounts} monitors={monitors} scanLog={scanLog} />}
         {tab==="incident" && <IncidentTab />}
+        {tab==="help" && <HelpTab installPrompt={installPrompt} setInstallPrompt={setInstallPrompt} />}
         {tab==="settings" && <SettingsTab user={user} logout={logout} setLegalPage={setLegalPage} subscription={subscription} />}
       </main>
 
