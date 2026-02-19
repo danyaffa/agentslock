@@ -1021,6 +1021,149 @@ function SettingsTab({ user, logout }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// LEGAL PAGES
+// ═══════════════════════════════════════════════════════════════════════════════
+const LEGAL = {
+  terms: { title: "Terms of Service", content: `Last updated: February 19, 2026
+
+1. ACCEPTANCE OF TERMS
+By accessing or using AgentsLock ("the Service"), operated by Leffler International Investments Pty Ltd (ACN 124 089 345, ABN 90 124 089 345), you agree to be bound by these Terms of Service.
+
+2. DESCRIPTION OF SERVICE
+AgentsLock is a personal cybersecurity dashboard that provides security monitoring, breach checking, password analysis, device hardening recommendations, and incident response tools. The Service is provided "as is" and "as available."
+
+3. USER ACCOUNTS
+You are responsible for maintaining the confidentiality of your account credentials. You must provide accurate registration information. You are responsible for all activities under your account.
+
+4. ACCEPTABLE USE
+You agree not to: (a) use the Service for any unlawful purpose; (b) attempt to gain unauthorized access to other users' data; (c) interfere with or disrupt the Service; (d) reverse engineer any aspect of the Service; (e) use the Service to attack or compromise third-party systems.
+
+5. INTELLECTUAL PROPERTY
+All content, features, and functionality of AgentsLock are owned by Leffler International Investments Pty Ltd and are protected by international copyright, trademark, and other intellectual property laws. No reproduction, distribution, or modification is permitted without prior written consent.
+
+6. THIRD-PARTY SERVICES
+The Service integrates with third-party APIs including HaveIBeenPwned, SSL Labs, and Firebase. Use of these services is subject to their respective terms. We are not responsible for third-party service availability or accuracy.
+
+7. DISCLAIMER OF WARRANTIES
+THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR COMPLETELY SECURE.
+
+8. LIMITATION OF LIABILITY
+TO THE MAXIMUM EXTENT PERMITTED BY AUSTRALIAN LAW, LEFFLER INTERNATIONAL INVESTMENTS PTY LTD SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF THE SERVICE.
+
+9. SECURITY RECOMMENDATIONS
+Security recommendations provided by AgentsLock are informational only and do not constitute professional cybersecurity advice. Users should consult qualified professionals for specific security concerns.
+
+10. DATA HANDLING
+User data is stored in Firebase (Google Cloud) infrastructure. We implement reasonable security measures but cannot guarantee absolute data security. See our Privacy Policy for details.
+
+11. TERMINATION
+We reserve the right to terminate or suspend access to the Service at our sole discretion, without notice, for conduct that we believe violates these Terms.
+
+12. GOVERNING LAW
+These Terms are governed by the laws of New South Wales, Australia. Any disputes shall be resolved in the courts of New South Wales.
+
+13. CONTACT
+Leffler International Investments Pty Ltd
+Level 2, 222 Pitt Street, Sydney 2000, Australia
+Phone: 0478 965 828` },
+
+  privacy: { title: "Privacy Policy", content: `Last updated: February 19, 2026
+
+1. INFORMATION WE COLLECT
+Account Information: Email address, display name, and password (encrypted by Firebase Authentication).
+Usage Data: Security checklist progress, account security status, scan history, and monitoring configurations.
+Technical Data: Browser type, device type, and IP address (collected automatically by Firebase).
+
+2. HOW WE USE YOUR INFORMATION
+To provide and maintain the Service.
+To authenticate your identity and secure your account.
+To store your security configurations and preferences.
+To improve the Service and user experience.
+
+3. DATA STORAGE
+All user data is stored in Google Firebase (Cloud Firestore) infrastructure located in Australia (australia-southeast1). Firebase provides enterprise-grade security including encryption at rest and in transit.
+
+4. DATA SHARING
+We do not sell, trade, or rent your personal information to third parties. Data may be shared only: (a) with your consent; (b) to comply with legal obligations; (c) to protect our rights or safety.
+
+5. THIRD-PARTY SERVICES
+HaveIBeenPwned API: When you use breach checking, your email or a partial hash of your password is sent to the HIBP API. Full passwords are never transmitted.
+SSL Labs API: When you scan a website, the domain name is sent to Qualys SSL Labs.
+Firebase/Google: Authentication and data storage are provided by Google Firebase.
+
+6. DATA SECURITY
+We implement industry-standard security measures including: Firebase Authentication with encrypted passwords, Firestore security rules restricting data access to authenticated users only, HTTPS encryption for all communications, user-scoped data isolation.
+
+7. YOUR RIGHTS
+Under Australian Privacy Principles, you have the right to: access your personal information, request correction of inaccurate data, request deletion of your account and data, opt out of non-essential data collection.
+
+8. DATA RETENTION
+Account data is retained as long as your account is active. You may delete your data at any time through Settings. Upon account deletion, all associated data is permanently removed within 30 days.
+
+9. CHILDREN'S PRIVACY
+The Service is not intended for users under 18 years of age. We do not knowingly collect personal information from children.
+
+10. CHANGES TO THIS POLICY
+We may update this Privacy Policy periodically. Changes will be posted on this page with an updated revision date.
+
+11. CONTACT
+Privacy inquiries: Leffler International Investments Pty Ltd
+Level 2, 222 Pitt Street, Sydney 2000, Australia
+Phone: 0478 965 828` },
+
+  disclaimer: { title: "Disclaimer", content: `Last updated: February 19, 2026
+
+GENERAL DISCLAIMER
+AgentsLock is provided by Leffler International Investments Pty Ltd (ACN 124 089 345, ABN 90 124 089 345) for informational and educational purposes only.
+
+NO PROFESSIONAL ADVICE
+The security recommendations, breach checking results, password analysis, and hardening checklists provided by AgentsLock do not constitute professional cybersecurity advice, financial advice, legal advice, or tax advice. Always consult qualified professionals for specific security, financial, legal, or tax concerns.
+
+NO WARRANTY
+AgentsLock is provided "as is" without any warranties, express or implied. We make no representations about the accuracy, completeness, or reliability of any information provided through the Service. Security threats evolve constantly, and no tool can guarantee complete protection.
+
+LIMITATION OF LIABILITY
+To the maximum extent permitted by law, Leffler International Investments Pty Ltd, its directors, employees, and agents shall not be liable for any direct, indirect, incidental, special, consequential, or punitive damages arising from: (a) your use of or inability to use the Service; (b) any security breach or data loss; (c) reliance on information provided by the Service; (d) actions taken based on the Service's recommendations.
+
+THIRD-PARTY CONTENT
+AgentsLock integrates with third-party services and APIs. We are not responsible for the accuracy, availability, or security of third-party services. Breach data is sourced from HaveIBeenPwned; SSL grades from Qualys SSL Labs.
+
+INVESTMENT & FINANCIAL DISCLAIMER
+Markets involve risk and returns are not guaranteed. Past performance is not indicative of future results. Nothing in this Service constitutes financial advice or a recommendation to buy, sell, or hold any investment.
+
+INTELLECTUAL PROPERTY
+All content, code, design, and branding of AgentsLock are the exclusive property of Leffler International Investments Pty Ltd. All trademarks and data belong to their respective owners. Unauthorized reproduction, distribution, or modification is strictly prohibited.
+
+AUSTRALIAN LAW
+This disclaimer is governed by the laws of New South Wales, Australia. Nothing in this disclaimer excludes or limits any consumer guarantee under the Australian Consumer Law that cannot be excluded or limited.
+
+CONTACT
+Leffler International Investments Pty Ltd
+Level 2, 222 Pitt Street, Sydney 2000, Australia
+Phone: 0478 965 828
+Website: agentslock.com` },
+};
+
+function LegalPage({ page, goBack }) {
+  const data = LEGAL[page];
+  if (!data) return null;
+  return (
+    <div style={{ maxWidth: 800, margin: "0 auto" }}>
+      <Btn onClick={goBack} color={C.dim} style={{ marginBottom: 16, fontSize: 11 }}>← Back to Dashboard</Btn>
+      <Card>
+        <h2 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, marginBottom: 20 }}>{data.title}</h2>
+        <div style={{ color: C.text, fontSize: 12, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{data.content}</div>
+        <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${C.border}`, color: C.dim, fontSize: 10, lineHeight: 1.8 }}>
+          <div style={{ fontWeight: 600, color: C.text }}>© 2026 AgentsLock — Leffler International Investments Pty Ltd</div>
+          <div>ACN 124 089 345 · ABN 90 124 089 345</div>
+          <div>Level 2, 222 Pitt Street, Sydney 2000, Australia · Phone: 0478 965 828</div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // INITIAL DATA
 // ═══════════════════════════════════════════════════════════════════════════════
 const INIT_THREATS = [
@@ -1190,10 +1333,41 @@ export default function App() {
         {tab==="reports" && <ReportTab checks={checks} threats={threats} accounts={accounts} monitors={monitors} scanLog={scanLog} />}
         {tab==="incident" && <IncidentTab />}
         {tab==="settings" && <SettingsTab user={user} logout={logout} />}
+        {tab?.startsWith("legal-") && <LegalPage page={tab.replace("legal-","")} goBack={()=>setTab("overview")} />}
       </main>
 
-      <footer style={{ textAlign:"center", padding:"20px 24px", borderTop:`1px solid ${C.border}`, color:C.dim, fontSize:11 }}>
-        AgentsLock v4.0 — <a href="https://agentslock.com" style={{ color:C.green, textDecoration:"none" }}>agentslock.com</a> — Firebase Secured
+      <footer style={{ borderTop:`1px solid ${C.border}`, padding:"30px 24px 20px", color:C.dim, fontSize:10 }}>
+        <div style={{ maxWidth:1200, margin:"0 auto" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:20, marginBottom:16 }}>
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                <div style={{ width:22, height:22, borderRadius:5, background:`linear-gradient(135deg,${C.green},${C.blue})`, display:"flex", alignItems:"center", justifyContent:"center" }}><I.Shield s={12} style={{ color:"#fff" }}/></div>
+                <span style={{ fontFamily:"'Chakra Petch'", fontWeight:700, fontSize:13, color:C.bright, letterSpacing:"0.06em" }}>AGENTSLOCK</span>
+              </div>
+              <div style={{ color:C.dim, lineHeight:1.6 }}>Personal Cybersecurity Platform<br/>Protecting devices, accounts & data</div>
+            </div>
+            <div style={{ display:"flex", gap:24 }}>
+              <div>
+                <div style={{ color:C.text, fontWeight:600, marginBottom:6, fontSize:11 }}>Legal</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                  {["Terms","Privacy","Disclaimer"].map(p=><button key={p} onClick={()=>setTab("legal-"+p.toLowerCase())} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:10, fontFamily:"inherit", padding:0, textAlign:"left" }}>{p}</button>)}
+                </div>
+              </div>
+              <div>
+                <div style={{ color:C.text, fontWeight:600, marginBottom:6, fontSize:11 }}>Links</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                  {[["Website","https://agentslock.com"],["GitHub","https://github.com/danyaffa/agentslock"]].map(([n,u])=><a key={n} href={u} target="_blank" rel="noopener" style={{ color:C.blue, textDecoration:"none", fontSize:10 }}>{n}</a>)}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, lineHeight:1.8 }}>
+            <div style={{ color:C.text, fontWeight:600, marginBottom:2 }}>© 2026 AgentsLock — Leffler International Investments Pty Ltd</div>
+            <div>ACN 124 089 345 · ABN 90 124 089 345 · Level 2, 222 Pitt Street, Sydney 2000, Australia · Phone: 0478 965 828</div>
+            <div style={{ marginTop:4 }}>All trademarks and data belong to their respective owners. No reproduction without permission.</div>
+            <div>Informational only. No financial, legal, or tax advice. Markets involve risk and returns are not guaranteed. Past performance is not indicative of future results.</div>
+          </div>
+        </div>
       </footer>
     </div>
   );
