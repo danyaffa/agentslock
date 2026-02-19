@@ -1290,6 +1290,7 @@ const DEVICE_CHECKS = {
   ],
 };
 const DEVICE_META = { windows: { name:"Windows", icon:<I.Monitor/> }, android: { name:"Android", icon:<I.Phone/> }, ios: { name:"iOS / Apple", icon:<I.Apple/> }, browser: { name:"Browsers", icon:<I.Globe/> }, network: { name:"Network", icon:<I.Wifi/> }, developer: { name:"Developer", icon:<I.Terminal/> } };
+const DEFAULT_CHECKS = Object.values(DEVICE_CHECKS).flat().reduce((acc, c) => ({ ...acc, [c.id]: true }), {});
 
 function DeviceTab({ checks, setChecks }) {
   const [active, setActive] = useState("windows");
@@ -2334,7 +2335,7 @@ const TABS = [
 export default function App() {
   const { user, loading, login, signup, logout } = useAuth();
   const [tab, setTab] = useState("overview");
-  const [checks, setChecks] = useState({});
+  const [checks, setChecks] = useState(DEFAULT_CHECKS);
   const [threats, setThreats] = useState(INIT_THREATS);
   const [accounts, setAccounts] = useState(INIT_ACCOUNTS);
   const [monitors, setMonitors] = useState([]);
@@ -2370,7 +2371,7 @@ export default function App() {
     if (!user) { setDataLoaded(false); return; }
     loadUserData(user.uid).then(data => {
       if (data) {
-        if (data.checks && Object.keys(data.checks).length) setChecks(data.checks);
+        if (data.checks && Object.keys(data.checks).length) setChecks({ ...DEFAULT_CHECKS, ...data.checks });
         if (data.threats?.length) setThreats(data.threats);
         if (data.accounts?.length) setAccounts(data.accounts);
         if (data.monitors?.length) setMonitors(data.monitors);
@@ -2531,6 +2532,13 @@ export default function App() {
             <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", background:C.redDim, border:`1px solid ${C.redBdr}`, borderRadius:6, animation:"pulse 2s infinite" }}>
               <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:11, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
             </div>
+          )}
+          {installPrompt && !window.matchMedia("(display-mode: standalone)").matches && (
+            <button onClick={async () => { if (!installPrompt) return; installPrompt.prompt(); const r = await installPrompt.userChoice; if (r.outcome === "accepted") setInstallPrompt(null); }}
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff", transition:"opacity 0.2s" }}
+              onMouseOver={e=>e.currentTarget.style.opacity=0.85} onMouseOut={e=>e.currentTarget.style.opacity=1}>
+              <I.Download s={14}/> Install App
+            </button>
           )}
           <div style={{ display:"flex", alignItems:"center", gap:6, color:C.dim, fontSize:11 }}><I.User s={14}/>{userName}</div>
         </div>
