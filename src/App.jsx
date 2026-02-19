@@ -262,9 +262,7 @@ function AuthScreen({ onLogin, onSignup }) {
 // PayPal Integration — $18 USD/month
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// *** IMPORTANT: Replace this with your PayPal Subscription Plan ID ***
-// Create a plan at: https://www.paypal.com/billing/plans
-const PAYPAL_PLAN_ID = "YOUR_PAYPAL_PLAN_ID";
+const PAYPAL_PLAN_ID = import.meta.env.VITE_PAYPAL_PLAN_ID;
 
 function SubscriptionScreen({ user, onSubscribed, onLogout }) {
   const paypalRef = useRef(null);
