@@ -2533,8 +2533,12 @@ export default function App() {
               <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:11, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
             </div>
           )}
-          {installPrompt && !window.matchMedia("(display-mode: standalone)").matches && (
-            <button onClick={async () => { if (!installPrompt) return; installPrompt.prompt(); const r = await installPrompt.userChoice; if (r.outcome === "accepted") setInstallPrompt(null); }}
+          {window.matchMedia("(display-mode: standalone)").matches ? (
+            <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`${C.green}15`, border:`1px solid ${C.greenBdr}`, borderRadius:6, fontSize:11, fontWeight:600, color:C.green }}>
+              <I.Check s={14}/> App Installed
+            </div>
+          ) : (
+            <button onClick={async () => { if (installPrompt) { installPrompt.prompt(); const r = await installPrompt.userChoice; if (r.outcome === "accepted") setInstallPrompt(null); } else { setTab("help"); } }}
               style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff", transition:"opacity 0.2s" }}
               onMouseOver={e=>e.currentTarget.style.opacity=0.85} onMouseOut={e=>e.currentTarget.style.opacity=1}>
               <I.Download s={14}/> Install App
