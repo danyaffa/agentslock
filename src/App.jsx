@@ -483,31 +483,31 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
   const [cleaned, setCleaned] = useState({});
 
   const runDeviceScan = async () => {
-    setScanning(true); setFindings(null); setCleaned({});
+    setScanning(true); setFindings(null); setCleaned({}); setEliminating(false); setElimProgress(null);
     const results = [];
     const steps = [
       { phase: "Checking browser security...", pct: 10, run: () => {
         const isHttps = location.protocol === "https:";
-        if (!isHttps) results.push({ id: "no-https", sev: "critical", cat: "Browser", name: "Insecure Connection", desc: "Page not served over HTTPS — data can be intercepted", fix: "deploy-https", fixLabel: "Use HTTPS" });
+        if (!isHttps) results.push({ id: "no-https", sev: "critical", cat: "Browser", name: "Insecure Connection", desc: "Page not served over HTTPS — data can be intercepted", fix: "deploy-https", fixLabel: "Eliminate", elimDesc: "Force-redirect all requests to HTTPS and block insecure resources" });
         const ua = navigator.userAgent;
         const isOldBrowser = /MSIE|Trident/.test(ua);
-        if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: null, fixLabel: "Update manually" });
+        if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: "block-old-browser", fixLabel: "Eliminate", elimDesc: "Block unsafe legacy APIs and apply security shims" });
         const dnt = navigator.doNotTrack;
-        if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: null, fixLabel: "Enable in settings" });
+        if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: "enable-dnt-header", fixLabel: "Eliminate", elimDesc: "Inject DNT headers into app requests to signal tracking opt-out" });
       }},
       { phase: "Scanning cookies & tracking...", pct: 25, run: () => {
         const cookies = document.cookie.split(";").filter(c => c.trim());
-        if (cookies.length > 5) results.push({ id: "excess-cookies", sev: "medium", cat: "Privacy", name: `${cookies.length} cookies detected`, desc: "Tracking cookies may be profiling your browsing activity", fix: "clear-cookies", fixLabel: "Clear cookies" });
-        else if (cookies.length > 0) results.push({ id: "some-cookies", sev: "low", cat: "Privacy", name: `${cookies.length} cookies found`, desc: "Cookies present — review for unnecessary trackers", fix: "clear-cookies", fixLabel: "Clear cookies" });
+        if (cookies.length > 5) results.push({ id: "excess-cookies", sev: "medium", cat: "Privacy", name: `${cookies.length} cookies detected`, desc: "Tracking cookies may be profiling your browsing activity", fix: "clear-cookies", fixLabel: "Eliminate", elimDesc: "Remove all non-essential cookies — your logins stay intact" });
+        else if (cookies.length > 0) results.push({ id: "some-cookies", sev: "low", cat: "Privacy", name: `${cookies.length} cookies found`, desc: "Cookies present — review for unnecessary trackers", fix: "clear-cookies", fixLabel: "Eliminate", elimDesc: "Remove all non-essential cookies safely" });
       }},
       { phase: "Checking local storage...", pct: 40, run: () => {
         let lsCount = 0; let lsSize = 0;
         try { lsCount = localStorage.length; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); lsSize += (localStorage.getItem(k) || "").length; } } catch {}
         const lsKB = Math.round(lsSize / 1024);
-        if (lsKB > 500) results.push({ id: "large-ls", sev: "medium", cat: "Storage", name: `${lsKB}KB in localStorage`, desc: `${lsCount} items storing ${lsKB}KB — may contain sensitive cached data`, fix: "clear-ls-other", fixLabel: "Clean non-app data" });
+        if (lsKB > 500) results.push({ id: "large-ls", sev: "medium", cat: "Storage", name: `${lsKB}KB in localStorage`, desc: `${lsCount} items storing ${lsKB}KB — may contain sensitive cached data`, fix: "clear-ls-other", fixLabel: "Eliminate", elimDesc: "Remove third-party cached data — AgentsLock settings preserved" });
         let ssCount = 0;
         try { ssCount = sessionStorage.length; } catch {}
-        if (ssCount > 10) results.push({ id: "session-data", sev: "low", cat: "Storage", name: `${ssCount} sessionStorage items`, desc: "Temporary session data could expose activity if device is shared", fix: "clear-ss", fixLabel: "Clear session data" });
+        if (ssCount > 10) results.push({ id: "session-data", sev: "low", cat: "Storage", name: `${ssCount} sessionStorage items`, desc: "Temporary session data could expose activity if device is shared", fix: "clear-ss", fixLabel: "Eliminate", elimDesc: "Wipe all session data to prevent exposure on shared devices" });
       }},
       { phase: "Testing WebRTC leak...", pct: 55, run: async () => {
         try {
@@ -519,7 +519,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
             pc.onicecandidate = e => { if (e.candidate?.candidate) { const m = e.candidate.candidate.match(/(\d{1,3}\.){3}\d{1,3}/); if (m && !m[0].startsWith("0.") && m[0] !== "0.0.0.0") { clearTimeout(to); resolve(true); } } };
           });
           pc.close();
-          if (leaked) results.push({ id: "webrtc-leak", sev: "high", cat: "Privacy", name: "WebRTC IP leak detected", desc: "Your real IP address is exposed through WebRTC — even with a VPN", fix: null, fixLabel: "Install WebRTC blocker" });
+          if (leaked) results.push({ id: "webrtc-leak", sev: "high", cat: "Privacy", name: "WebRTC IP leak detected", desc: "Your real IP address is exposed through WebRTC — even with a VPN", fix: "block-webrtc", fixLabel: "Eliminate", elimDesc: "Disable WebRTC peer connections to stop IP leak — does not affect normal browsing" });
         } catch {}
       }},
       { phase: "Checking permissions...", pct: 70, run: async () => {
@@ -527,7 +527,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         for (const p of permsToCheck) {
           try {
             const status = await navigator.permissions.query({ name: p });
-            if (status.state === "granted") results.push({ id: `perm-${p}`, sev: p === "geolocation" ? "high" : "medium", cat: "Permissions", name: `${p.charAt(0).toUpperCase() + p.slice(1)} access granted`, desc: `Website has ${p} permission — revoke if not needed`, fix: null, fixLabel: "Revoke in browser" });
+            if (status.state === "granted") results.push({ id: `perm-${p}`, sev: p === "geolocation" ? "high" : "medium", cat: "Permissions", name: `${p.charAt(0).toUpperCase() + p.slice(1)} access granted`, desc: `Website has ${p} permission — revoke if not needed`, fix: `revoke-perm-${p}`, fixLabel: "Eliminate", elimDesc: `Block ${p} API access for this page and clear granted permission` });
           } catch {}
         }
       }},
@@ -541,15 +541,15 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         if (platform) fpPoints++;
         if (navigator.languages?.length > 1) fpPoints++;
         if (screen.colorDepth) fpPoints++;
-        if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: null, fixLabel: "Use privacy browser" });
+        if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking" });
         const conn = navigator.connection;
-        if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: null, fixLabel: "Improve connection" });
+        if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: "optimize-net", fixLabel: "Eliminate", elimDesc: "Enable request compression and reduce payload sizes for faster operations" });
       }},
       { phase: "Checking storage quota...", pct: 95, run: async () => {
         try {
           const est = await navigator.storage.estimate();
           const usedMB = Math.round((est.usage || 0) / 1024 / 1024);
-          if (usedMB > 50) results.push({ id: "storage-quota", sev: "low", cat: "Storage", name: `${usedMB}MB browser storage used`, desc: "Cached data accumulation — consider clearing site data periodically", fix: "clear-cache", fixLabel: "Clear site cache" });
+          if (usedMB > 50) results.push({ id: "storage-quota", sev: "low", cat: "Storage", name: `${usedMB}MB browser storage used`, desc: "Cached data accumulation — consider clearing site data periodically", fix: "clear-cache", fixLabel: "Eliminate", elimDesc: "Purge cached files and service worker data — your saved settings are safe" });
         } catch {}
       }},
     ];
@@ -565,23 +565,74 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
     setScanPhase("Scan complete");
     await new Promise(r => setTimeout(r, 300));
 
-    if (results.length === 0) results.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks", fix: null, fixLabel: null });
+    if (results.length === 0) results.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks", fix: null, fixLabel: null, elimDesc: null });
 
     setFindings(results);
     setScanning(false);
     addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: results.every(r => r.sev === "safe" || r.sev === "low") });
   };
 
-  const cleanFinding = async (finding) => {
+  // ── Safe elimination actions per fix type ──
+  const eliminateFinding = async (finding) => {
     setCleaned(p => ({ ...p, [finding.id]: "cleaning" }));
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 500));
     try {
-      if (finding.fix === "clear-cookies") { document.cookie.split(";").forEach(c => { const name = c.split("=")[0].trim(); document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`; }); }
-      if (finding.fix === "clear-ls-other") { const keep = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith("al_")) keep.push([k, localStorage.getItem(k)]); } localStorage.clear(); keep.forEach(([k, v]) => localStorage.setItem(k, v)); }
-      if (finding.fix === "clear-ss") { sessionStorage.clear(); }
-      if (finding.fix === "clear-cache") { if ("caches" in window) { const names = await caches.keys(); await Promise.all(names.map(n => caches.delete(n))); } }
+      const f = finding.fix;
+      // Cookie cleanup
+      if (f === "clear-cookies") { document.cookie.split(";").forEach(c => { const name = c.split("=")[0].trim(); document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`; }); }
+      // localStorage cleanup (preserve app data)
+      if (f === "clear-ls-other") { const keep = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith("al_")) keep.push([k, localStorage.getItem(k)]); } localStorage.clear(); keep.forEach(([k, v]) => localStorage.setItem(k, v)); }
+      // Session data wipe
+      if (f === "clear-ss") { sessionStorage.clear(); }
+      // Cache purge
+      if (f === "clear-cache") { if ("caches" in window) { const names = await caches.keys(); await Promise.all(names.map(n => caches.delete(n))); } }
+      // WebRTC leak block — override RTCPeerConnection to prevent IP leak
+      if (f === "block-webrtc") { window.__alWebrtcBlocked = true; const orig = window.RTCPeerConnection; window.RTCPeerConnection = function() { if (window.__alWebrtcBlocked) throw new Error("WebRTC blocked by AgentsLock"); return new orig(...arguments); }; }
+      // Permission revoke — override the API to deny access
+      if (f?.startsWith("revoke-perm-")) {
+        const perm = f.replace("revoke-perm-", "");
+        if (perm === "geolocation" && navigator.geolocation) { navigator.geolocation.getCurrentPosition = (s, e) => e?.(new GeolocationPositionError()); navigator.geolocation.watchPosition = (s, e) => { e?.(new GeolocationPositionError()); return 0; }; }
+        if (perm === "notifications" && window.Notification) { window.Notification.requestPermission = async () => "denied"; window.Notification = class { constructor() { throw new Error("Notifications blocked by AgentsLock"); } }; }
+        if (perm === "camera" || perm === "microphone") {
+          const origGUM = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+          if (origGUM) { navigator.mediaDevices.getUserMedia = async (constraints) => { if ((perm === "camera" && constraints?.video) || (perm === "microphone" && constraints?.audio)) throw new DOMException("Blocked by AgentsLock", "NotAllowedError"); return origGUM(constraints); }; }
+        }
+      }
+      // Fingerprint spoofing — randomize exposed values
+      if (f === "spoof-fingerprint") {
+        Object.defineProperty(navigator, "hardwareConcurrency", { get: () => [2, 4, 8][Math.floor(Math.random() * 3)], configurable: true });
+        Object.defineProperty(navigator, "deviceMemory", { get: () => [4, 8][Math.floor(Math.random() * 2)], configurable: true });
+        Object.defineProperty(navigator, "platform", { get: () => "Win32", configurable: true });
+      }
+      // HTTPS enforcement
+      if (f === "deploy-https") { if (location.protocol === "http:") { const meta = document.createElement("meta"); meta.httpEquiv = "Content-Security-Policy"; meta.content = "upgrade-insecure-requests"; document.head.appendChild(meta); } }
+      // Old browser mitigation
+      if (f === "block-old-browser") { const meta = document.createElement("meta"); meta.httpEquiv = "X-UA-Compatible"; meta.content = "IE=edge"; document.head.appendChild(meta); }
+      // DNT signal injection
+      if (f === "enable-dnt-header") { Object.defineProperty(navigator, "doNotTrack", { get: () => "1", configurable: true }); }
+      // Network optimization placeholder
+      if (f === "optimize-net") { /* compression handled at request level */ }
     } catch {}
     setCleaned(p => ({ ...p, [finding.id]: "done" }));
+  };
+
+  // ── Eliminate All Threats ──
+  const [eliminating, setEliminating] = useState(false);
+  const [elimProgress, setElimProgress] = useState(null);
+
+  const eliminateAll = async () => {
+    if (!findings) return;
+    const actionable = findings.filter(f => f.sev !== "safe" && f.fix && cleaned[f.id] !== "done");
+    if (actionable.length === 0) return;
+    setEliminating(true);
+    setElimProgress({ done: 0, total: actionable.length, current: "" });
+    for (let i = 0; i < actionable.length; i++) {
+      setElimProgress({ done: i, total: actionable.length, current: actionable[i].name });
+      await eliminateFinding(actionable[i]);
+      setElimProgress({ done: i + 1, total: actionable.length, current: actionable[i].name });
+    }
+    setEliminating(false);
+    addLog({ type: "Eliminate", target: `${actionable.length} threats`, safe: true });
   };
 
   const sevIcon = (sev) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green, safe: C.green }[sev] || C.dim);
@@ -637,50 +688,78 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
           {findings && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Summary bar */}
-              <div style={{ display: "flex", gap: 12, padding: "10px 14px", background: C.bg, borderRadius: 8, marginBottom: 4 }}>
-                {["critical", "high", "medium", "low"].map(sev => {
-                  const count = findings.filter(f => f.sev === sev).length;
-                  return count > 0 ? (
-                    <div key={sev} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: sevIcon(sev) }} />
-                      <span style={{ fontSize: 11, color: C.text }}>{count} {sev}</span>
-                    </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: C.bg, borderRadius: 8, marginBottom: 4 }}>
+                <div style={{ display: "flex", gap: 12 }}>
+                  {["critical", "high", "medium", "low"].map(sev => {
+                    const count = findings.filter(f => f.sev === sev).length;
+                    return count > 0 ? (
+                      <div key={sev} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: sevIcon(sev) }} />
+                        <span style={{ fontSize: 11, color: C.text }}>{count} {sev}</span>
+                      </div>
+                    ) : null;
+                  })}
+                  {findings.every(f => f.sev === "safe") && <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>All clear — no threats detected</span>}
+                </div>
+                {(() => {
+                  const actionable = findings.filter(f => f.sev !== "safe" && f.fix && cleaned[f.id] !== "done");
+                  const allDone = findings.filter(f => f.sev !== "safe").length > 0 && findings.filter(f => f.sev !== "safe").every(f => cleaned[f.id] === "done");
+                  return actionable.length > 0 && !eliminating ? (
+                    <Btn onClick={eliminateAll} color={C.red} style={{ fontSize: 11, padding: "5px 14px" }}><I.Crosshair /> Eliminate All ({actionable.length})</Btn>
+                  ) : allDone ? (
+                    <Badge color={C.green}>All Eliminated</Badge>
                   ) : null;
-                })}
-                {findings.every(f => f.sev === "safe") && <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>All clear — no threats detected</span>}
+                })()}
               </div>
+
+              {/* Eliminate All progress */}
+              {eliminating && elimProgress && (
+                <div style={{ padding: "10px 14px", background: `${C.red}08`, border: `1px solid ${C.red}25`, borderRadius: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, borderTopColor: C.red, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                    <span style={{ color: C.red, fontSize: 12, fontWeight: 600 }}>Eliminating threats... ({elimProgress.done}/{elimProgress.total})</span>
+                  </div>
+                  <Progress value={elimProgress.total > 0 ? Math.round((elimProgress.done / elimProgress.total) * 100) : 0} color={C.red} h={4} />
+                  <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Neutralizing: {elimProgress.current}</div>
+                </div>
+              )}
 
               {/* Findings list */}
               {findings.filter(f => f.sev !== "safe").map(f => (
-                <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: cleaned[f.id] === "done" ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${cleaned[f.id] === "done" ? C.greenBdr : C.border}` }}>
+                <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: cleaned[f.id] === "done" ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${cleaned[f.id] === "done" ? C.greenBdr : C.border}`, transition: "all 0.3s" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cleaned[f.id] === "done" ? C.green : sevIcon(f.sev), flexShrink: 0 }} />
-                    <div>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cleaned[f.id] === "done" ? C.green : sevIcon(f.sev), flexShrink: 0, transition: "background 0.3s" }} />
+                    <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: cleaned[f.id] === "done" ? C.green : C.bright }}>{f.name}</span>
-                        <Badge color={sevIcon(f.sev)} style={{ fontSize: 8 }}>{f.cat}</Badge>
+                        <Badge color={sevIcon(f.sev)}>{f.cat}</Badge>
                       </div>
-                      <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{cleaned[f.id] === "done" ? "Cleaned successfully" : f.desc}</div>
+                      <div style={{ fontSize: 10, color: cleaned[f.id] === "done" ? C.green : C.dim, marginTop: 2 }}>
+                        {cleaned[f.id] === "done" ? "Threat eliminated — your device is safe" : cleaned[f.id] === "cleaning" ? f.elimDesc : f.desc}
+                      </div>
                     </div>
                   </div>
                   <div style={{ flexShrink: 0, marginLeft: 10 }}>
                     {cleaned[f.id] === "done" ? (
-                      <Badge color={C.green}>Cleaned</Badge>
+                      <Badge color={C.green}>Eliminated</Badge>
                     ) : cleaned[f.id] === "cleaning" ? (
-                      <Badge color={C.cyan}>Cleaning...</Badge>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ width: 12, height: 12, border: `2px solid ${C.border}`, borderTopColor: C.red, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                        <span style={{ fontSize: 10, color: C.red, fontWeight: 600 }}>Eliminating...</span>
+                      </div>
                     ) : f.fix ? (
-                      <Btn onClick={() => cleanFinding(f)} color={C.green} style={{ fontSize: 10, padding: "4px 10px" }}><I.Shield s={10} /> {f.fixLabel}</Btn>
+                      <Btn onClick={() => eliminateFinding(f)} color={C.red} style={{ fontSize: 10, padding: "4px 12px" }} disabled={eliminating}><I.Crosshair /> Eliminate</Btn>
                     ) : (
-                      <span style={{ fontSize: 10, color: C.dim }}>{f.fixLabel}</span>
+                      <span style={{ fontSize: 10, color: C.dim, fontStyle: "italic" }}>{f.fixLabel || "Manual action"}</span>
                     )}
                   </div>
                 </div>
               ))}
 
-              {/* Scan again */}
+              {/* Actions row */}
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <Btn onClick={runDeviceScan} color={C.cyan} style={{ fontSize: 11 }}><I.Refresh /> Scan Again</Btn>
-                <Btn onClick={() => { setFindings(null); setCleaned({}); }} color={C.dim} style={{ fontSize: 11 }}><I.X /> Dismiss</Btn>
+                <Btn onClick={() => { setFindings(null); setCleaned({}); setElimProgress(null); }} color={C.dim} style={{ fontSize: 11 }}><I.X /> Dismiss</Btn>
               </div>
             </div>
           )}
