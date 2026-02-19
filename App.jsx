@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { auth, db, signUp, logIn, logOut, onAuth, loadUserData, saveUserData } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AGENTSLOCK v3.0 — Full-Stack Personal Cybersecurity Platform
-// Phase 3: Auth + Persistence | Phase 4: Monitoring | Phase 5: PWA
+// AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
+// Firebase Auth + Firestore | Real-Time Monitoring | PWA
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── SVG Icon Factory ────────────────────────────────────────────────────────
@@ -64,35 +65,31 @@ const C = {
 };
 const sevColor = (s) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green }[s] || C.dim);
 
-// ─── LocalStorage Persistence (Phase 3) ─────────────────────────────────────
+// ─── LocalStorage (fallback cache) ───────────────────────────────────────────
 const LS = {
   get: (k, def) => { try { const v = localStorage.getItem(`al_${k}`); return v ? JSON.parse(v) : def; } catch { return def; } },
   set: (k, v) => { try { localStorage.setItem(`al_${k}`, JSON.stringify(v)); } catch {} },
   del: (k) => { try { localStorage.removeItem(`al_${k}`); } catch {} },
 };
 
-// ─── Auth System (Phase 3) ───────────────────────────────────────────────────
+// ─── Firebase Auth Hook ──────────────────────────────────────────────────────
 function useAuth() {
-  const [user, setUser] = useState(() => LS.get("user", null));
-  const login = (email, pass) => {
-    const stored = LS.get("users", {});
-    if (stored[email] && stored[email].pass === btoa(pass)) {
-      const u = { email, name: stored[email].name, loggedIn: Date.now() };
-      LS.set("user", u); setUser(u); return { ok: true };
-    }
-    if (stored[email]) return { ok: false, err: "Wrong password" };
-    return { ok: false, err: "Account not found" };
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const unsub = onAuth((u) => { setUser(u); setLoading(false); });
+    return unsub;
+  }, []);
+  const doLogin = async (email, pass) => {
+    try { await logIn(email, pass); return { ok: true }; }
+    catch (e) { return { ok: false, err: e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() }; }
   };
-  const signup = (email, name, pass) => {
-    const stored = LS.get("users", {});
-    if (stored[email]) return { ok: false, err: "Account already exists" };
-    stored[email] = { name, pass: btoa(pass), created: Date.now() };
-    LS.set("users", stored);
-    const u = { email, name, loggedIn: Date.now() };
-    LS.set("user", u); setUser(u); return { ok: true };
+  const doSignup = async (email, name, pass) => {
+    try { await signUp(email, pass, name); return { ok: true }; }
+    catch (e) { return { ok: false, err: e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() }; }
   };
-  const logout = () => { LS.del("user"); setUser(null); };
-  return { user, login, signup, logout };
+  const doLogout = async () => { await logOut(); };
+  return { user, loading, login: doLogin, signup: doSignup, logout: doLogout };
 }
 
 // ─── Crypto Utils ────────────────────────────────────────────────────────────
@@ -194,14 +191,16 @@ function AuthScreen({ onLogin, onSignup }) {
   const [name, setName] = useState("");
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const submit = () => {
-    setErr("");
-    if (!email || !pass) { setErr("Fill all fields"); return; }
-    if (mode === "signup" && !name) { setErr("Enter your name"); return; }
-    if (pass.length < 6) { setErr("Password must be 6+ characters"); return; }
-    const r = mode === "login" ? onLogin(email, pass) : onSignup(email, name, pass);
+  const submit = async () => {
+    setErr(""); setBusy(true);
+    if (!email || !pass) { setErr("Fill all fields"); setBusy(false); return; }
+    if (mode === "signup" && !name) { setErr("Enter your name"); setBusy(false); return; }
+    if (pass.length < 6) { setErr("Password must be 6+ characters"); setBusy(false); return; }
+    const r = mode === "login" ? await onLogin(email, pass) : await onSignup(email, name, pass);
     if (!r.ok) setErr(r.err);
+    setBusy(false);
   };
 
   return (
@@ -242,13 +241,13 @@ function AuthScreen({ onLogin, onSignup }) {
 
           {err && <div style={{ padding: "8px 12px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
 
-          <Btn onClick={submit} style={{ width: "100%", justifyContent: "center", padding: "12px" }}>
-            <I.LogIn /> {mode === "login" ? "Sign In" : "Create Account"}
+          <Btn onClick={submit} disabled={busy} style={{ width: "100%", justifyContent: "center", padding: "12px" }}>
+            <I.LogIn /> {busy ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
           </Btn>
         </Card>
 
         <p style={{ textAlign: "center", color: C.dim, fontSize: 11, marginTop: 20 }}>
-          🔒 All data stored locally in your browser. No external servers.
+          🔒 Secured by Firebase Authentication & Firestore
         </p>
       </div>
     </div>
@@ -622,7 +621,7 @@ function DeviceTab({ checks, setChecks }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {items.map(c => (
-            <div key={c.id} onClick={() => { const nv = { ...checks, [c.id]: !checks[c.id] }; setChecks(nv); LS.set("checks", nv); }}
+            <div key={c.id} onClick={() => { const nv = { ...checks, [c.id]: !checks[c.id] }; setChecks(nv); }}
               style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", background: checks[c.id] ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${checks[c.id] ? C.greenBdr : C.border}`, cursor: "pointer" }}>
               <div style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, marginTop: 1, border: `2px solid ${checks[c.id] ? C.green : "#2a2d3e"}`, background: checks[c.id] ? C.green : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "#0a0b0f" }}>{checks[c.id] && <I.Check s={12}/>}</div>
               <div style={{ flex: 1 }}>
@@ -642,7 +641,7 @@ function DeviceTab({ checks, setChecks }) {
 // TAB 6: ACCOUNTS
 // ═══════════════════════════════════════════════════════════════════════════════
 function AccountTab({ accounts, setAccounts }) {
-  const toggle = (id, f) => { const n = accounts.map(a => a.id===id?{...a,[f]:!a[f]}:a); setAccounts(n); LS.set("accounts", n); };
+  const toggle = (id, f) => { const n = accounts.map(a => a.id===id?{...a,[f]:!a[f]}:a); setAccounts(n); };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -694,7 +693,7 @@ function ThreatTab({ threats, setThreats }) {
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <Badge color={t.status==="active"?C.red:t.status==="blocked"?C.green:t.status==="investigating"?C.orange:C.blue}>{t.status}</Badge>
-              {t.status==="active" && <Btn onClick={()=>{const n=threats.map(x=>x.id===t.id?{...x,status:"blocked"}:x);setThreats(n);LS.set("threats",n);}} color={C.green} style={{ fontSize:10, padding:"3px 8px" }}>Block</Btn>}
+              {t.status==="active" && <Btn onClick={()=>{const n=threats.map(x=>x.id===t.id?{...x,status:"blocked"}:x);setThreats(n);}} color={C.green} style={{ fontSize:10, padding:"3px 8px" }}>Block</Btn>}
             </div>
           </div>
         </Card>
@@ -715,7 +714,7 @@ function MonitorTab({ monitors, setMonitors }) {
     if (!newUrl) return;
     let url = newUrl.trim(); if (!url.startsWith("http")) url = "https://" + url;
     const m = { id: Date.now(), url, name: newName || new URL(url).hostname, status: "checking", responseTime: null, lastCheck: null, sslExpiry: null, checks: [] };
-    const n = [...monitors, m]; setMonitors(n); LS.set("monitors", n);
+    const n = [...monitors, m]; setMonitors(n);
     setNewUrl(""); setNewName("");
     checkSite(m, n);
   };
@@ -727,10 +726,10 @@ function MonitorTab({ monitors, setMonitors }) {
       const r = await fetch(monitor.url, { mode: "no-cors", cache: "no-cache" });
       const elapsed = Date.now() - start;
       const updated = allMonitors.map(m => m.id === monitor.id ? { ...m, status: "up", responseTime: elapsed, lastCheck: new Date().toISOString(), checks: [...(m.checks || []).slice(-49), { time: Date.now(), status: "up", ms: elapsed }] } : m);
-      setMonitors(updated); LS.set("monitors", updated);
+      setMonitors(updated);
     } catch {
       const updated = allMonitors.map(m => m.id === monitor.id ? { ...m, status: "down", responseTime: null, lastCheck: new Date().toISOString(), checks: [...(m.checks || []).slice(-49), { time: Date.now(), status: "down", ms: 0 }] } : m);
-      setMonitors(updated); LS.set("monitors", updated);
+      setMonitors(updated);
     }
     setChecking(false);
   };
@@ -741,7 +740,7 @@ function MonitorTab({ monitors, setMonitors }) {
     setChecking(false);
   };
 
-  const remove = (id) => { const n = monitors.filter(m => m.id !== id); setMonitors(n); LS.set("monitors", n); };
+  const remove = (id) => { const n = monitors.filter(m => m.id !== id); setMonitors(n); };
 
   const upCount = monitors.filter(m => m.status === "up").length;
   const upPct = monitors.length > 0 ? Math.round((upCount / monitors.length) * 100) : 100;
@@ -962,7 +961,7 @@ function SettingsTab({ user, logout }) {
       <Card>
         <Sect title="Account" icon={<I.User />}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.bg, borderRadius: 8 }}>
-            <div><div style={{ color: C.bright, fontWeight: 600 }}>{user?.name || "User"}</div><div style={{ color: C.dim, fontSize: 12 }}>{user?.email}</div></div>
+            <div><div style={{ color: C.bright, fontWeight: 600 }}>{user?.displayName || "User"}</div><div style={{ color: C.dim, fontSize: 12 }}>{user?.email}</div><div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>UID: {user?.uid?.slice(0,12)}...</div></div>
             <Btn onClick={logout} color={C.red}><I.LogOut /> Sign Out</Btn>
           </div>
         </Sect>
@@ -1008,8 +1007,8 @@ function SettingsTab({ user, logout }) {
       <Card>
         <Sect title="About" icon={<I.Shield />}>
           <div style={{ color: C.text, fontSize: 12 }}>
-            <div style={{ marginBottom: 4 }}><span style={{ color: C.bright, fontWeight: 600 }}>AgentsLock v3.0</span> — Personal Cybersecurity Platform</div>
-            <div style={{ color: C.dim }}>Built with React + Vite. Zero external dependencies. All security checks run client-side.</div>
+            <div style={{ marginBottom: 4 }}><span style={{ color: C.bright, fontWeight: 600 }}>AgentsLock v4.0</span> — Firebase-Secured Cybersecurity Platform</div>
+            <div style={{ color: C.dim }}>React + Vite + Firebase Auth + Firestore. Real-time cloud sync. PWA enabled.</div>
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
               <a href="https://agentslock.com" target="_blank" rel="noopener" style={{ color: C.green, textDecoration: "none", fontSize: 11 }}>agentslock.com</a>
               <a href="https://github.com/danyaffa/agentslock" target="_blank" rel="noopener" style={{ color: C.blue, textDecoration: "none", fontSize: 11 }}>GitHub</a>
@@ -1062,17 +1061,51 @@ const TABS = [
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
-  const { user, login, signup, logout } = useAuth();
+  const { user, loading, login, signup, logout } = useAuth();
   const [tab, setTab] = useState("overview");
-  const [checks, setChecks] = useState(() => LS.get("checks", {}));
-  const [threats, setThreats] = useState(() => LS.get("threats", INIT_THREATS));
-  const [accounts, setAccounts] = useState(() => LS.get("accounts", INIT_ACCOUNTS));
-  const [monitors, setMonitors] = useState(() => LS.get("monitors", []));
-  const [scanLog, setScanLog] = useState(() => LS.get("scanLog", []));
+  const [checks, setChecks] = useState({});
+  const [threats, setThreats] = useState(INIT_THREATS);
+  const [accounts, setAccounts] = useState(INIT_ACCOUNTS);
+  const [monitors, setMonitors] = useState([]);
+  const [scanLog, setScanLog] = useState([]);
   const [now, setNow] = useState(new Date());
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
-  const addLog = (entry) => { const n = [{ ...entry, time: new Date() }, ...scanLog].slice(0, 100); setScanLog(n); LS.set("scanLog", n); };
+
+  // Load user data from Firestore on login
+  useEffect(() => {
+    if (!user) { setDataLoaded(false); return; }
+    loadUserData(user.uid).then(data => {
+      if (data) {
+        if (data.checks && Object.keys(data.checks).length) setChecks(data.checks);
+        if (data.threats?.length) setThreats(data.threats);
+        if (data.accounts?.length) setAccounts(data.accounts);
+        if (data.monitors?.length) setMonitors(data.monitors);
+        if (data.scanLog?.length) setScanLog(data.scanLog);
+      }
+      setDataLoaded(true);
+    }).catch(() => setDataLoaded(true));
+  }, [user?.uid]);
+
+  // Auto-save to Firestore when data changes (debounced)
+  const saveTimer = useRef(null);
+  const autoSave = useCallback((field, value) => {
+    if (!user || !dataLoaded) return;
+    // Save to localStorage immediately (fast)
+    LS.set(field, value);
+    // Debounce Firestore save (reduce writes)
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveUserData(user.uid, field, value).catch(() => {});
+    }, 2000);
+  }, [user, dataLoaded]);
+
+  const setChecksAndSave = (v) => { const nv = typeof v === "function" ? v(checks) : v; setChecks(nv); autoSave("checks", nv); };
+  const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); };
+  const setAccountsAndSave = (v) => { const nv = typeof v === "function" ? v(accounts) : v; setAccounts(nv); autoSave("accounts", nv); };
+  const setMonitorsAndSave = (v) => { const nv = typeof v === "function" ? v(monitors) : v; setMonitors(nv); autoSave("monitors", nv); };
+  const addLog = (entry) => { const n = [{ ...entry, time: new Date().toISOString() }, ...scanLog].slice(0, 100); setScanLog(n); autoSave("scanLog", n); };
 
   // Auto-check monitors every 5 min
   useEffect(() => {
@@ -1083,24 +1116,29 @@ export default function App() {
           const start = Date.now();
           await fetch(m.url, { mode: "no-cors", cache: "no-cache" });
           const elapsed = Date.now() - start;
-          setMonitors(prev => {
-            const updated = prev.map(x => x.id === m.id ? { ...x, status: "up", responseTime: elapsed, lastCheck: new Date().toISOString(), checks: [...(x.checks || []).slice(-49), { time: Date.now(), status: "up", ms: elapsed }] } : x);
-            LS.set("monitors", updated); return updated;
-          });
+          setMonitorsAndSave(prev => prev.map(x => x.id === m.id ? { ...x, status: "up", responseTime: elapsed, lastCheck: new Date().toISOString(), checks: [...(x.checks || []).slice(-49), { time: Date.now(), status: "up", ms: elapsed }] } : x));
         } catch {
-          setMonitors(prev => {
-            const updated = prev.map(x => x.id === m.id ? { ...x, status: "down", lastCheck: new Date().toISOString(), checks: [...(x.checks || []).slice(-49), { time: Date.now(), status: "down", ms: 0 }] } : x);
-            LS.set("monitors", updated); return updated;
-          });
+          setMonitorsAndSave(prev => prev.map(x => x.id === m.id ? { ...x, status: "down", lastCheck: new Date().toISOString(), checks: [...(x.checks || []).slice(-49), { time: Date.now(), status: "down", ms: 0 }] } : x));
         }
       });
-    }, 300000); // 5 minutes
+    }, 300000);
     return () => clearInterval(interval);
   }, [monitors.length]);
+
+  // Loading screen
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 48, height: 48, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+        <div style={{ color: C.dim, fontSize: 13 }}>Loading AgentsLock...</div>
+      </div>
+    </div>
+  );
 
   if (!user) return <AuthScreen onLogin={login} onSignup={signup} />;
 
   const activeThreats = threats.filter(t => t.status === "active").length;
+  const userName = user.displayName || user.email?.split("@")[0] || "User";
 
   return (
     <div style={{ fontFamily: "'Space Grotesk', 'Segoe UI', sans-serif", background: C.bg, color: C.text, minHeight: "100vh" }}>
@@ -1117,7 +1155,7 @@ export default function App() {
           <div style={{ width:34, height:34, borderRadius:8, background:`linear-gradient(135deg,${C.green},${C.blue})`, display:"flex", alignItems:"center", justifyContent:"center" }}><I.Shield s={18} style={{ color:"#fff" }}/></div>
           <div>
             <div style={{ fontFamily:"'Chakra Petch'", fontWeight:700, fontSize:16, color:C.bright, letterSpacing:"0.06em" }}>AGENTSLOCK</div>
-            <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.12em", textTransform:"uppercase" }}>v3.0 — Full Security Platform</div>
+            <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.12em", textTransform:"uppercase" }}>v4.0 — Firebase Secured Platform</div>
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -1127,7 +1165,7 @@ export default function App() {
               <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:11, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
             </div>
           )}
-          <div style={{ display:"flex", alignItems:"center", gap:6, color:C.dim, fontSize:11 }}><I.User s={14}/>{user.name}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, color:C.dim, fontSize:11 }}><I.User s={14}/>{userName}</div>
         </div>
       </header>
 
@@ -1141,21 +1179,21 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={user.name} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
-        {tab==="devices" && <DeviceTab checks={checks} setChecks={setChecks} />}
-        {tab==="accounts" && <AccountTab accounts={accounts} setAccounts={setAccounts} />}
-        {tab==="threats" && <ThreatTab threats={threats} setThreats={setThreats} />}
-        {tab==="monitor" && <MonitorTab monitors={monitors} setMonitors={setMonitors} />}
+        {tab==="devices" && <DeviceTab checks={checks} setChecks={setChecksAndSave} />}
+        {tab==="accounts" && <AccountTab accounts={accounts} setAccounts={setAccountsAndSave} />}
+        {tab==="threats" && <ThreatTab threats={threats} setThreats={setThreatsAndSave} />}
+        {tab==="monitor" && <MonitorTab monitors={monitors} setMonitors={setMonitorsAndSave} />}
         {tab==="reports" && <ReportTab checks={checks} threats={threats} accounts={accounts} monitors={monitors} scanLog={scanLog} />}
         {tab==="incident" && <IncidentTab />}
         {tab==="settings" && <SettingsTab user={user} logout={logout} />}
       </main>
 
       <footer style={{ textAlign:"center", padding:"20px 24px", borderTop:`1px solid ${C.border}`, color:C.dim, fontSize:11 }}>
-        AgentsLock v3.0 — <a href="https://agentslock.com" style={{ color:C.green, textDecoration:"none" }}>agentslock.com</a> — All data stored locally
+        AgentsLock v4.0 — <a href="https://agentslock.com" style={{ color:C.green, textDecoration:"none" }}>agentslock.com</a> — Firebase Secured
       </footer>
     </div>
   );
