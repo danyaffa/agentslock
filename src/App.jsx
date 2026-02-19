@@ -1929,12 +1929,10 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
         <Sect title="About & Legal" icon={<I.Shield />}>
           <div style={{ color: C.text, fontSize: 12 }}>
             <div style={{ marginBottom: 4 }}><span style={{ color: C.bright, fontWeight: 600 }}>AgentsLock v4.0</span> — Firebase-Secured Cybersecurity Platform</div>
-            <div style={{ color: C.dim, marginBottom: 4 }}>Leffler International Investments Pty Ltd — ACN 124 089 345 / ABN 90 124 089 345</div>
+            <div style={{ color: C.dim, marginBottom: 4 }}>Firebase-Secured Cybersecurity Platform</div>
             <div style={{ color: C.dim }}>React + Vite + Firebase Auth + Firestore. Real-time cloud sync. PWA enabled.</div>
             <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <a href="https://agentslock.com" target="_blank" rel="noopener" style={{ color: C.green, textDecoration: "none", fontSize: 11 }}>agentslock.com</a>
-              <a href="https://github.com/danyaffa/agentslock" target="_blank" rel="noopener" style={{ color: C.blue, textDecoration: "none", fontSize: 11 }}>GitHub</a>
-              <span style={{ color: C.border }}>|</span>
               <button onClick={()=>setLegalPage("terms")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>Terms of Service</button>
               <button onClick={()=>setLegalPage("privacy")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>Privacy Policy</button>
               <button onClick={()=>setLegalPage("disclaimer")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>Disclaimer</button>
@@ -1968,13 +1966,8 @@ function LegalOverlay({ page, onClose }) {
   );
 
   const COMPANY = {
-    name: "Leffler International Investments Pty Ltd",
+    name: "AgentsLock",
     brand: "AgentsLock",
-    acn: "ACN 124 089 345",
-    abn: "ABN 90 124 089 345",
-    address: "Level 2, 222 Pitt Street, Sydney NSW 2000, Australia",
-    phone: "0478 965 828",
-    email: "support@agentslock.com",
     website: "agentslock.com",
   };
 
@@ -1983,7 +1976,7 @@ function LegalOverlay({ page, onClose }) {
   // ─── TERMS OF SERVICE ──────────────────────────────────────────────────────
   const TermsContent = () => (
     <>
-      {para(`These Terms of Service ("Terms") govern your access to and use of the AgentsLock cybersecurity platform ("Service"), operated by ${COMPANY.name} (${COMPANY.acn} / ${COMPANY.abn}), trading as ${COMPANY.brand}. By accessing or using our Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.`)}
+      {para(`These Terms of Service ("Terms") govern your access to and use of the AgentsLock cybersecurity platform ("Service"), operated by ${COMPANY.name}. By accessing or using our Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.`)}
       {para(`Last updated: ${lastUpdated}`)}
 
       {heading("1. Acceptance of Terms")}
@@ -2049,7 +2042,7 @@ function LegalOverlay({ page, onClose }) {
       {para("Our total aggregate liability shall not exceed the amount you have paid us in the twelve (12) months preceding the claim.")}
 
       {heading("11. Indemnification")}
-      {para(`You agree to indemnify, defend, and hold harmless ${COMPANY.name}, its directors, officers, employees, agents, and affiliates from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable legal fees) arising out of or relating to your violation of these Terms or your use of the Service.`)}
+      {para(`You agree to indemnify, defend, and hold harmless ${COMPANY.brand}, its directors, officers, employees, agents, and affiliates from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable legal fees) arising out of or relating to your violation of these Terms or your use of the Service.`)}
 
       {heading("12. Governing Law & Jurisdiction")}
       {para("These Terms shall be governed by and construed in accordance with the laws of New South Wales, Australia, without regard to its conflict of law provisions.")}
@@ -2058,21 +2051,14 @@ function LegalOverlay({ page, onClose }) {
 
       {heading("13. Changes to Terms & Contact")}
       {para("We reserve the right to modify these Terms at any time. Material changes will be communicated via the Service or email. Continued use of the Service after changes constitutes acceptance of the revised Terms.")}
-      {para("For questions about these Terms, contact us:")}
-      <ul style={{ paddingLeft:20, marginBottom:12 }}>
-        {listItem(`${COMPANY.name}`)}
-        {listItem(`${COMPANY.acn} / ${COMPANY.abn}`)}
-        {listItem(`${COMPANY.address}`)}
-        {listItem(`Phone: ${COMPANY.phone}`)}
-        {listItem(`Email: ${COMPANY.email}`)}
-      </ul>
+      {para(`For questions about these Terms, contact us via the ${COMPANY.website} website.`)}
     </>
   );
 
   // ─── PRIVACY POLICY ────────────────────────────────────────────────────────
   const PrivacyContent = () => (
     <>
-      {para(`This Privacy Policy describes how ${COMPANY.name} (${COMPANY.acn} / ${COMPANY.abn}), trading as ${COMPANY.brand}, collects, uses, stores, and protects your personal information when you use our cybersecurity platform. We are committed to complying with the Australian Privacy Principles (APPs) under the Privacy Act 1988 (Cth).`)}
+      {para(`This Privacy Policy describes how ${COMPANY.brand} collects, uses, stores, and protects your personal information when you use our cybersecurity platform. We are committed to complying with the Australian Privacy Principles (APPs) under the Privacy Act 1988 (Cth).`)}
       {para(`Last updated: ${lastUpdated}`)}
 
       {heading("1. Information We Collect")}
@@ -2170,20 +2156,14 @@ function LegalOverlay({ page, onClose }) {
 
       {heading("11. Changes to This Policy & Contact")}
       {para("We may update this Privacy Policy periodically. Material changes will be notified via the Service or email. Continued use after changes constitutes acceptance.")}
-      {para("For privacy inquiries, data access requests, or complaints:")}
-      <ul style={{ paddingLeft:20, marginBottom:12 }}>
-        {listItem(`Privacy Officer — ${COMPANY.name}`)}
-        {listItem(`${COMPANY.address}`)}
-        {listItem(`Phone: ${COMPANY.phone}`)}
-        {listItem(`Email: ${COMPANY.email}`)}
-      </ul>
+      {para(`For privacy inquiries, data access requests, or complaints, contact us via the ${COMPANY.website} website.`)}
     </>
   );
 
   // ─── DISCLAIMER ────────────────────────────────────────────────────────────
   const DisclaimerContent = () => (
     <>
-      {para(`This Disclaimer applies to the AgentsLock cybersecurity platform ("Service"), operated by ${COMPANY.name} (${COMPANY.acn} / ${COMPANY.abn}).`)}
+      {para(`This Disclaimer applies to the AgentsLock cybersecurity platform ("Service"), operated by ${COMPANY.brand}.`)}
       {para(`Last updated: ${lastUpdated}`)}
 
       {heading("Financial Disclaimer")}
@@ -2215,17 +2195,11 @@ function LegalOverlay({ page, onClose }) {
       {para("The Service integrates with and references third-party tools, APIs, and databases. We do not control these services and are not responsible for their accuracy, availability, or security practices. All third-party trademarks and data belong to their respective owners.")}
 
       {heading("Limitation")}
-      {para(`To the maximum extent permitted by law, ${COMPANY.name} shall not be liable for any direct, indirect, incidental, special, consequential, or exemplary damages arising from the use of or inability to use the Service.`)}
+      {para(`To the maximum extent permitted by law, ${COMPANY.brand} shall not be liable for any direct, indirect, incidental, special, consequential, or exemplary damages arising from the use of or inability to use the Service.`)}
       {para("Nothing in this Disclaimer excludes or limits any rights you may have under the Australian Consumer Law that cannot be excluded or limited by agreement.")}
 
       {heading("Contact")}
-      {para("If you have questions about this Disclaimer, contact us at:")}
-      <ul style={{ paddingLeft:20, marginBottom:12 }}>
-        {listItem(`${COMPANY.name}`)}
-        {listItem(`${COMPANY.address}`)}
-        {listItem(`Phone: ${COMPANY.phone}`)}
-        {listItem(`Email: ${COMPANY.email}`)}
-      </ul>
+      {para(`If you have questions about this Disclaimer, contact us via the ${COMPANY.website} website.`)}
     </>
   );
 
@@ -2261,13 +2235,7 @@ function LegalOverlay({ page, onClose }) {
       <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
         <div style={{ display:"grid", gap:8 }}>
           {[
-            ["Company", COMPANY.name],
-            ["Trading As", COMPANY.brand],
-            ["ACN", "124 089 345"],
-            ["ABN", "90 124 089 345"],
-            ["Address", COMPANY.address],
-            ["Phone", COMPANY.phone],
-            ["Email", COMPANY.email],
+            ["Platform", COMPANY.brand],
             ["Website", COMPANY.website],
           ].map(([label, val]) => (
             <div key={label} style={{ display:"flex", gap:8, fontSize:12 }}>
@@ -2279,7 +2247,7 @@ function LegalOverlay({ page, onClose }) {
       </div>
 
       {heading("Copyright & Intellectual Property")}
-      {para(`\u00A9 2026 ${COMPANY.brand} \u2014 ${COMPANY.name}. All rights reserved.`)}
+      {para(`\u00A9 2026 ${COMPANY.brand}. All rights reserved.`)}
       {para("All trademarks, logos, and data belong to their respective owners. No reproduction without permission. The AgentsLock name, logo, and all associated branding are the exclusive intellectual property of the Company.")}
       {para("This software and its source code are protected by copyright law and international treaties. Unauthorised reproduction or distribution of this program, or any portion of it, may result in severe civil and criminal penalties.")}
     </>
@@ -2304,7 +2272,7 @@ function LegalOverlay({ page, onClose }) {
           <div style={{ width:40, height:40, borderRadius:10, background:`${C.green}15`, border:`1px solid ${C.greenBdr}`, display:"flex", alignItems:"center", justifyContent:"center", color:C.green }}>{icons[page]}</div>
           <div>
             <h1 style={{ fontFamily:"'Chakra Petch', sans-serif", fontSize:20, fontWeight:700, color:C.bright, margin:0 }}>{titles[page]}</h1>
-            <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{COMPANY.name} ({COMPANY.acn})</div>
+            <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{COMPANY.brand}</div>
           </div>
         </div>
         {/* Content */}
@@ -2604,11 +2572,7 @@ export default function App() {
         <div style={{ textAlign:"center", maxWidth:680, margin:"0 auto" }}>
           <div style={{ marginBottom:4 }}>
             <span style={{ color:C.bright, fontWeight:600 }}>{"\u00A9"} 2026 AgentsLock</span>
-            {" \u2014 "}Leffler International Investments Pty Ltd
-            {" \u00B7 "}ACN 124 089 345 {"\u00B7"} ABN 90 124 089 345
-          </div>
-          <div style={{ marginBottom:4 }}>
-            Level 2, 222 Pitt Street, Sydney 2000, Australia {"\u00B7"} Phone: 0478 965 828
+            {" \u2014 "}All rights reserved.
           </div>
           <div style={{ color:C.dim, fontSize:10, marginTop:6, lineHeight:1.6 }}>
             All trademarks and data belong to their respective owners. No reproduction without permission.
