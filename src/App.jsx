@@ -467,7 +467,42 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 1: OVERVIEW DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab, addLog }) {
+// ── Apply a single runtime protection by fix ID (survives within session) ──
+function applyProtection(fixId) {
+  try {
+    if (fixId === "block-webrtc" && !window.__alWebrtcBlocked) {
+      window.__alWebrtcBlocked = true;
+      const orig = window.RTCPeerConnection;
+      if (orig) window.RTCPeerConnection = function() { if (window.__alWebrtcBlocked) throw new Error("WebRTC blocked by AgentsLock"); return new orig(...arguments); };
+    }
+    if (fixId === "spoof-fingerprint" && !window.__alFingerprintSpoofed) {
+      window.__alFingerprintSpoofed = true;
+      Object.defineProperty(navigator, "hardwareConcurrency", { get: () => [2, 4, 8][Math.floor(Math.random() * 3)], configurable: true });
+      Object.defineProperty(navigator, "deviceMemory", { get: () => [4, 8][Math.floor(Math.random() * 2)], configurable: true });
+      Object.defineProperty(navigator, "platform", { get: () => "Win32", configurable: true });
+    }
+    if (fixId === "enable-dnt-header" && navigator.doNotTrack !== "1") {
+      Object.defineProperty(navigator, "doNotTrack", { get: () => "1", configurable: true });
+    }
+    if (fixId === "clear-cookies") {
+      document.cookie.split(";").forEach(c => { const name = c.split("=")[0].trim(); document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`; });
+    }
+    if (fixId === "deploy-https" && location.protocol === "http:") {
+      const meta = document.createElement("meta"); meta.httpEquiv = "Content-Security-Policy"; meta.content = "upgrade-insecure-requests"; document.head.appendChild(meta);
+    }
+    if (fixId?.startsWith("revoke-perm-")) {
+      const perm = fixId.replace("revoke-perm-", "");
+      if (perm === "geolocation" && navigator.geolocation) { navigator.geolocation.getCurrentPosition = (s, e) => e?.(new GeolocationPositionError()); navigator.geolocation.watchPosition = (s, e) => { e?.(new GeolocationPositionError()); return 0; }; }
+      if (perm === "notifications" && window.Notification) { window.Notification.requestPermission = async () => "denied"; window.Notification = class { constructor() { throw new Error("Notifications blocked by AgentsLock"); } }; }
+      if (perm === "camera" || perm === "microphone") {
+        const origGUM = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+        if (origGUM) { navigator.mediaDevices.getUserMedia = async (constraints) => { if ((perm === "camera" && constraints?.video) || (perm === "microphone" && constraints?.audio)) throw new DOMException("Blocked by AgentsLock", "NotAllowedError"); return origGUM(constraints); }; }
+      }
+    }
+  } catch {}
+}
+
+function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
   const totalChecks = Object.values(DEVICE_CHECKS).flat().length;
   const doneChecks = Object.keys(checks).filter(k => checks[k]).length;
   const score = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
@@ -480,10 +515,26 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
   const [scanProgress, setScanProgress] = useState(0);
   const [scanPhase, setScanPhase] = useState("");
   const [findings, setFindings] = useState(null);
-  const [cleaned, setCleaned] = useState({});
+  const cleaned = deviceCleaned;
+  const setCleaned = (v) => setDeviceCleaned(typeof v === "function" ? v(deviceCleaned) : v);
+
+  // Re-apply runtime protections on mount for previously eliminated threats
+  const protectionsApplied = useRef(false);
+  useEffect(() => {
+    if (protectionsApplied.current) return;
+    const doneItems = Object.entries(cleaned).filter(([, v]) => v === "done");
+    if (doneItems.length > 0) {
+      protectionsApplied.current = true;
+      doneItems.forEach(([id]) => {
+        const fixMap = { "webrtc-leak": "block-webrtc", "fingerprint": "spoof-fingerprint", "no-dnt": "enable-dnt-header", "no-https": "deploy-https" };
+        const fixId = fixMap[id] || (id.startsWith("perm-") ? `revoke-${id}` : null);
+        if (fixId) applyProtection(fixId);
+      });
+    }
+  }, [cleaned]);
 
   const runDeviceScan = async () => {
-    setScanning(true); setFindings(null); setCleaned({}); setEliminating(false); setElimProgress(null);
+    setScanning(true); setFindings(null); setEliminating(false); setElimProgress(null);
     const results = [];
     const pageOrigin = location.origin || location.href;
     const pageHost = location.hostname || "localhost";
@@ -544,16 +595,19 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         }
       }},
       { phase: "Analyzing device exposure...", pct: 85, run: () => {
-        const cores = navigator.hardwareConcurrency;
-        const mem = navigator.deviceMemory;
-        const platform = navigator.platform;
-        let fpPoints = 0; const fpAPIs = [];
-        if (cores) { fpPoints++; fpAPIs.push("hardwareConcurrency"); }
-        if (mem) { fpPoints++; fpAPIs.push("deviceMemory"); }
-        if (platform) { fpPoints++; fpAPIs.push("platform"); }
-        if (navigator.languages?.length > 1) { fpPoints++; fpAPIs.push("languages"); }
-        if (screen.colorDepth) { fpPoints++; fpAPIs.push("screen.colorDepth"); }
-        if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking", origin: `navigator.{${fpAPIs.join(", ")}}`, originType: "api" });
+        // Skip fingerprint check if already spoofed by AgentsLock
+        if (!window.__alFingerprintSpoofed) {
+          const cores = navigator.hardwareConcurrency;
+          const mem = navigator.deviceMemory;
+          const platform = navigator.platform;
+          let fpPoints = 0; const fpAPIs = [];
+          if (cores) { fpPoints++; fpAPIs.push("hardwareConcurrency"); }
+          if (mem) { fpPoints++; fpAPIs.push("deviceMemory"); }
+          if (platform) { fpPoints++; fpAPIs.push("platform"); }
+          if (navigator.languages?.length > 1) { fpPoints++; fpAPIs.push("languages"); }
+          if (screen.colorDepth) { fpPoints++; fpAPIs.push("screen.colorDepth"); }
+          if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking", origin: `navigator.{${fpAPIs.join(", ")}}`, originType: "api" });
+        }
         const conn = navigator.connection;
         if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: "optimize-net", fixLabel: "Eliminate", elimDesc: "Enable request compression and reduce payload sizes for faster operations", origin: `${conn.effectiveType} via navigator.connection`, originType: "api" });
       }},
@@ -594,38 +648,16 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
     await new Promise(r => setTimeout(r, 500));
     try {
       const f = finding.fix;
-      // Cookie cleanup
-      if (f === "clear-cookies") { document.cookie.split(";").forEach(c => { const name = c.split("=")[0].trim(); document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`; }); }
+      // Use shared protection applier for runtime overrides
+      applyProtection(f);
       // localStorage cleanup (preserve app data)
       if (f === "clear-ls-other") { const keep = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith("al_")) keep.push([k, localStorage.getItem(k)]); } localStorage.clear(); keep.forEach(([k, v]) => localStorage.setItem(k, v)); }
       // Session data wipe
       if (f === "clear-ss") { sessionStorage.clear(); }
       // Cache purge
       if (f === "clear-cache") { if ("caches" in window) { const names = await caches.keys(); await Promise.all(names.map(n => caches.delete(n))); } }
-      // WebRTC leak block — override RTCPeerConnection to prevent IP leak
-      if (f === "block-webrtc") { window.__alWebrtcBlocked = true; const orig = window.RTCPeerConnection; window.RTCPeerConnection = function() { if (window.__alWebrtcBlocked) throw new Error("WebRTC blocked by AgentsLock"); return new orig(...arguments); }; }
-      // Permission revoke — override the API to deny access
-      if (f?.startsWith("revoke-perm-")) {
-        const perm = f.replace("revoke-perm-", "");
-        if (perm === "geolocation" && navigator.geolocation) { navigator.geolocation.getCurrentPosition = (s, e) => e?.(new GeolocationPositionError()); navigator.geolocation.watchPosition = (s, e) => { e?.(new GeolocationPositionError()); return 0; }; }
-        if (perm === "notifications" && window.Notification) { window.Notification.requestPermission = async () => "denied"; window.Notification = class { constructor() { throw new Error("Notifications blocked by AgentsLock"); } }; }
-        if (perm === "camera" || perm === "microphone") {
-          const origGUM = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
-          if (origGUM) { navigator.mediaDevices.getUserMedia = async (constraints) => { if ((perm === "camera" && constraints?.video) || (perm === "microphone" && constraints?.audio)) throw new DOMException("Blocked by AgentsLock", "NotAllowedError"); return origGUM(constraints); }; }
-        }
-      }
-      // Fingerprint spoofing — randomize exposed values
-      if (f === "spoof-fingerprint") {
-        Object.defineProperty(navigator, "hardwareConcurrency", { get: () => [2, 4, 8][Math.floor(Math.random() * 3)], configurable: true });
-        Object.defineProperty(navigator, "deviceMemory", { get: () => [4, 8][Math.floor(Math.random() * 2)], configurable: true });
-        Object.defineProperty(navigator, "platform", { get: () => "Win32", configurable: true });
-      }
-      // HTTPS enforcement
-      if (f === "deploy-https") { if (location.protocol === "http:") { const meta = document.createElement("meta"); meta.httpEquiv = "Content-Security-Policy"; meta.content = "upgrade-insecure-requests"; document.head.appendChild(meta); } }
       // Old browser mitigation
       if (f === "block-old-browser") { const meta = document.createElement("meta"); meta.httpEquiv = "X-UA-Compatible"; meta.content = "IE=edge"; document.head.appendChild(meta); }
-      // DNT signal injection
-      if (f === "enable-dnt-header") { Object.defineProperty(navigator, "doNotTrack", { get: () => "1", configurable: true }); }
       // Network optimization placeholder
       if (f === "optimize-net") { /* compression handled at request level */ }
     } catch {}
@@ -2018,6 +2050,7 @@ export default function App() {
   const [accounts, setAccounts] = useState(INIT_ACCOUNTS);
   const [monitors, setMonitors] = useState([]);
   const [scanLog, setScanLog] = useState([]);
+  const [deviceCleaned, setDeviceCleaned] = useState({});
   const [now, setNow] = useState(new Date());
   const [dataLoaded, setDataLoaded] = useState(false);
   const [legalPage, setLegalPage] = useState(null);
@@ -2045,6 +2078,7 @@ export default function App() {
         if (data.accounts?.length) setAccounts(data.accounts);
         if (data.monitors?.length) setMonitors(data.monitors);
         if (data.scanLog?.length) setScanLog(data.scanLog);
+        if (data.deviceCleaned && Object.keys(data.deviceCleaned).length) setDeviceCleaned(data.deviceCleaned);
       }
       setDataLoaded(true);
     }).catch(() => setDataLoaded(true));
@@ -2067,6 +2101,7 @@ export default function App() {
   const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); };
   const setAccountsAndSave = (v) => { const nv = typeof v === "function" ? v(accounts) : v; setAccounts(nv); autoSave("accounts", nv); };
   const setMonitorsAndSave = (v) => { const nv = typeof v === "function" ? v(monitors) : v; setMonitors(nv); autoSave("monitors", nv); };
+  const setDeviceCleanedAndSave = (v) => { const nv = typeof v === "function" ? v(deviceCleaned) : v; setDeviceCleaned(nv); autoSave("deviceCleaned", nv); };
   const addLog = (entry) => { const n = [{ ...entry, time: new Date().toISOString() }, ...scanLog].slice(0, 100); setScanLog(n); autoSave("scanLog", n); };
 
   // Auto-check monitors every 5 min
@@ -2193,7 +2228,7 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleanedAndSave} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
