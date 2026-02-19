@@ -246,10 +246,10 @@ export default function CyberShieldApp() {
           </div>
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff", letterSpacing: "-0.02em" }}>
-              CYBER SHIELD
+              AGENTSLOCK
             </div>
             <div style={{ fontSize: 10, color: "#4a4f6a", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Personal Security Dashboard
+              Personal Cybersecurity Dashboard
             </div>
           </div>
         </div>

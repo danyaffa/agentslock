@@ -1,6 +1,8 @@
-# 🛡️ Cyber Shield — Personal Security Dashboard
+# 🔒 AgentsLock — Personal Cybersecurity Dashboard
 
-A real-time personal cybersecurity monitoring dashboard built to protect devices, accounts, and financial data from compromise.
+**AgentsLock** is a real-time personal cybersecurity monitoring dashboard built to protect your devices, accounts, and financial data from compromise.
+
+🌐 **Live:** [agentslock.com](https://agentslock.com)
 
 ## Features
 
@@ -34,11 +36,20 @@ Upload `index.jsx` as a React artifact.
 
 ### Option 2: Run locally with Vite
 ```bash
-npm create vite@latest cyber-shield -- --template react
-cp index.jsx cyber-shield/src/App.jsx
-cd cyber-shield
+npm create vite@latest agentslock -- --template react
+cp index.jsx agentslock/src/App.jsx
+cd agentslock
 npm install
 npm run dev
+```
+
+### Option 3: Deploy to Vercel
+```bash
+npm create vite@latest agentslock -- --template react
+cp index.jsx agentslock/src/App.jsx
+cd agentslock
+npm install
+npx vercel
 ```
 
 ## Security Principles
