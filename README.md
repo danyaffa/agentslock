@@ -1,66 +1,85 @@
-# 🔒 AgentsLock — Personal Cybersecurity Dashboard
+# 🔒 AgentsLock v2.0
 
-**AgentsLock** is a real-time personal cybersecurity monitoring dashboard built to protect your devices, accounts, and financial data from compromise.
+**Personal Cybersecurity Dashboard** — Full-featured security platform to protect your devices, accounts, and data.
 
-🌐 **Live:** [agentslock.com](https://agentslock.com)
+🌐 Live: [agentslock.com](https://agentslock.com)
 
 ## Features
 
-- **Security Score** — Overall hardening progress at a glance
-- **Device Monitoring** — Track Windows, Android, routers, and browsers
-- **Account Audit** — 2FA status, app passwords, session counts, risk levels
-- **Threat Feed** — Live threat detection with severity & status tracking
-- **Hardening Checklist** — Interactive security tasks across 4 categories
-- **Incident Response** — Step-by-step emergency protocol when compromise is suspected
+### 🛡️ Overview Dashboard
+- Real-time security score calculated from hardening checklist progress
+- Active threat counter with live status
+- Device monitoring summary
+- Account risk overview
+- Quick action shortcuts
+- Scan history log
 
-## Threat Coverage
+### 🔍 Breach Checker
+- **Email breach check** via HaveIBeenPwned API
+- **Password breach check** using k-anonymity (SHA-1 prefix only — your password never leaves your browser)
+- Breach history tracking
 
-Malware / Spyware, RATs, Credential Theft, Phishing, Session Hijacking, DNS Poisoning, Public Wi-Fi Interception, Keyloggers, Browser Token Theft, API Key Leaks, Unauthorized Scripts
+### 🔑 Password Tools
+- **Password Strength Analyzer** — entropy calculation, crack time estimation, issue detection
+- **Secure Password Generator** — configurable length (8-64), uppercase, lowercase, numbers, symbols
+- One-click copy to clipboard
+- Detects common breached passwords
 
-## Accounts Protected
+### 🌐 Website Security Scanner
+- SSL/TLS grade checking via SSL Labs API
+- Security headers analysis with recommendations
+- Provides exact header values to implement
+- Covers CSP, HSTS, X-Frame-Options, Referrer-Policy, and more
 
-Google/Gmail, GitHub, Vercel, AWS, Firebase, Banking, PayPal, Domain Registrar
+### 💻 Device Hardening (56 checks across 5 categories)
+- **Windows** (12 checks) — BitLocker, Defender, firewall, Secure Boot, SMBv1, credential guard
+- **Android** (12 checks) — encryption, Find My Device, Play Protect, permissions, USB debugging
+- **Browsers** (10 checks) — HTTPS-only, uBlock Origin, cookies, Safe Browsing, WebRTC
+- **Network** (10 checks) — router password, WPA3, WPS, UPnP, firmware, DNS
+- **Developer** (12 checks) — .env security, GitHub secret scanning, SSH keys, API rotation, CloudTrail
+
+Each check includes: severity rating, step-by-step guide, and PowerShell/bash commands where applicable.
+
+### 👤 Account Security Audit
+- Track 2FA status across 8 critical accounts
+- App password monitoring
+- Session count tracking
+- Risk level assessment (low/medium/high)
+- Toggle 2FA and app password status
+
+### ⚠️ Threat Log
+- Real-time threat tracking with severity levels
+- Filter by status: active, blocked, investigating, resolved
+- One-click threat blocking
+- Threat descriptions and target identification
+
+### 🚨 Incident Response Protocol
+- 6-step emergency response checklist
+- Activatable incident mode with visual alerts
+- Action items for each step with checkboxes
+- Emergency contact links (Google, GitHub, AWS, Vercel, HIBP)
 
 ## Tech Stack
-
-- React (JSX)
-- Tailwind-free — all styles inline for zero-dependency rendering
-- JetBrains Mono + Space Grotesk typography
-- SVG icon system (no external icon library)
-- No external dependencies beyond React
-
-## Getting Started
-
-### Option 1: Open in Claude.ai
-Upload `index.jsx` as a React artifact.
-
-### Option 2: Run locally with Vite
-```bash
-npm create vite@latest agentslock -- --template react
-cp index.jsx agentslock/src/App.jsx
-cd agentslock
-npm install
-npm run dev
-```
-
-### Option 3: Deploy to Vercel
-```bash
-npm create vite@latest agentslock -- --template react
-cp index.jsx agentslock/src/App.jsx
-cd agentslock
-npm install
-npx vercel
-```
+- React 18 + Vite
+- Zero dependencies (no Tailwind, no UI libraries)
+- Inline styles for maximum portability
+- Chakra Petch + Space Grotesk + Fira Code fonts
+- Deployed on Vercel
 
 ## Security Principles
-
 - Zero-trust mindset
 - Least-privilege access
-- MFA everywhere
-- Secrets never in plaintext
+- Multi-factor authentication everywhere
+- Secrets never stored in plaintext
 - Continuous monitoring
-- Hardware/app auth over SMS
+- Immediate revocation of compromised keys
+
+## Deploy
+```bash
+npm install
+npm run dev     # Development
+npm run build   # Production build
+```
 
 ## License
-
 MIT
