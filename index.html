@@ -12,16 +12,100 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>AgentsLock — Cybersecurity Dashboard</title>
-    <!-- PayPal SDK — client-id is injected from VITE_PAYPAL_CLIENT_ID env variable -->
-    <script src="https://www.paypal.com/sdk/js?client-id=%VITE_PAYPAL_CLIENT_ID%&vault=true&intent=subscription" data-sdk-integration-source="button-factory"></script>
+    <style>
+      /* Global keyframes — needed BEFORE React mounts so loading spinners work */
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+      /* Splash screen styles */
+      #splash {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: #06080d; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        animation: fadeIn 0.3s ease;
+      }
+      #splash .logo {
+        width: 64px; height: 64px; border-radius: 16px;
+        background: linear-gradient(135deg, #00e87b, #3b8bff);
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0, 232, 123, 0.2);
+      }
+      #splash .logo svg { width: 32px; height: 32px; }
+      #splash .title {
+        font-size: 22px; font-weight: 700; color: #eef0f6;
+        letter-spacing: 0.06em; margin-bottom: 6px;
+      }
+      #splash .sub { font-size: 12px; color: #5a6178; margin-bottom: 28px; }
+      #splash .spinner {
+        width: 32px; height: 32px; border: 3px solid #161b2e;
+        border-top-color: #00e87b; border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      #splash .status { color: #5a6178; font-size: 11px; margin-top: 14px; }
+      #splash.error .spinner { border-top-color: #ff4057; animation: none; }
+      #splash.error .status { color: #ff4057; }
+    </style>
   </head>
   <body style="margin:0;background:#06080d">
+    <!-- Visible splash screen while JS loads — prevents black screen on mobile -->
+    <div id="splash">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div class="title">AGENTSLOCK</div>
+      <div class="sub">Personal Cybersecurity Platform</div>
+      <div class="spinner"></div>
+      <div class="status">Loading...</div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <noscript>
+      <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#06080d;color:#eef0f6;font-family:sans-serif;text-align:center;padding:20px;">
+        <div>
+          <h1 style="font-size:20px;margin-bottom:10px;">AgentsLock requires JavaScript</h1>
+          <p style="color:#5a6178;font-size:14px;">Please enable JavaScript in your browser settings to use this app.</p>
+        </div>
+      </div>
+    </noscript>
+
     <script>
+      // Remove splash screen once React mounts (App.jsx will call this)
+      window.__removeSplash = function() {
+        var s = document.getElementById('splash');
+        if (s) { s.style.opacity = '0'; s.style.transition = 'opacity 0.3s'; setTimeout(function() { s.remove(); }, 300); }
+      };
+
+      // Show error on splash if app fails to load within 15 seconds
+      setTimeout(function() {
+        var s = document.getElementById('splash');
+        if (s) {
+          s.className = 'error';
+          s.querySelector('.status').textContent = 'Taking too long — check your connection and refresh';
+        }
+      }, 15000);
+
+      // Service worker registration with update handling
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            // Check for updates
+            reg.addEventListener('updatefound', function() {
+              var newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', function() {
+                  if (newWorker.state === 'activated') {
+                    // New version available — reload to apply
+                    window.location.reload();
+                  }
+                });
+              }
+            });
+          }).catch(function() {});
         });
       }
     </script>

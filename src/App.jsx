@@ -1,10 +1,37 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Component } from "react";
 import { auth, db, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
 // Firebase Auth + Firestore | Real-Time Monitoring | PWA
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Error Boundary ─────────────────────────────────────────────────────────
+export { ErrorBoundary as AppErrorBoundary };
+class ErrorBoundary extends Component {
+  state = { hasError: false, error: null };
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: "100vh", background: "#06080d", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", padding: 20 }}>
+          <div style={{ textAlign: "center", maxWidth: 400 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: "linear-gradient(135deg, #ff4057, #ff9f2e)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 22, color: "#eef0f6", margin: "0 0 8px" }}>Something went wrong</h1>
+            <p style={{ color: "#5a6178", fontSize: 13, marginBottom: 20 }}>AgentsLock encountered an error. Try refreshing the page.</p>
+            <button onClick={() => window.location.reload()} style={{ background: "#00e87b15", border: "1px solid #00e87b40", color: "#00e87b", padding: "10px 24px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: 600 }}>Refresh Page</button>
+            <div style={{ color: "#5a6178", fontSize: 10, marginTop: 16, fontFamily: "'Fira Code', monospace", padding: "8px 12px", background: "#0c0f18", borderRadius: 6 }}>{String(this.state.error?.message || "Unknown error")}</div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ─── SVG Icon Factory ────────────────────────────────────────────────────────
 const icon = (d, s = 18) => (p) => (
@@ -263,6 +290,7 @@ function AuthScreen({ onLogin, onSignup }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const PAYPAL_PLAN_ID = import.meta.env.VITE_PAYPAL_PLAN_ID;
+const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID;
 
 function SubscriptionScreen({ user, onSubscribed, onLogout }) {
   const paypalRef = useRef(null);
@@ -271,14 +299,30 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Wait for PayPal SDK to load
-    const checkPayPal = setInterval(() => {
-      if (window.paypal) {
-        setPaypalReady(true);
-        clearInterval(checkPayPal);
+    // If PayPal SDK is already loaded, use it
+    if (window.paypal) { setPaypalReady(true); return; }
+    // Otherwise, load it dynamically (the HTML script tag may have failed due to env vars)
+    if (PAYPAL_CLIENT_ID) {
+      const existing = document.querySelector('script[src*="paypal.com/sdk"]');
+      if (!existing) {
+        const script = document.createElement("script");
+        script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&vault=true&intent=subscription`;
+        script.setAttribute("data-sdk-integration-source", "button-factory");
+        script.onload = () => setPaypalReady(true);
+        script.onerror = () => setError("Failed to load PayPal. Check your connection and refresh.");
+        document.head.appendChild(script);
       }
+    }
+    // Poll as fallback (in case script was already loading from HTML)
+    const checkPayPal = setInterval(() => {
+      if (window.paypal) { setPaypalReady(true); clearInterval(checkPayPal); }
     }, 500);
-    return () => clearInterval(checkPayPal);
+    // Stop polling after 20 seconds
+    const timeout = setTimeout(() => {
+      clearInterval(checkPayPal);
+      if (!window.paypal) setError("PayPal failed to load. Please check your internet connection and refresh.");
+    }, 20000);
+    return () => { clearInterval(checkPayPal); clearTimeout(timeout); };
   }, []);
 
   useEffect(() => {
@@ -1706,15 +1750,24 @@ export default function App() {
     return () => clearInterval(interval);
   }, [monitors.length]);
 
-  // Loading screen
-  if (loading) return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ width: 48, height: 48, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-        <div style={{ color: C.dim, fontSize: 13 }}>Loading AgentsLock...</div>
+  // Remove the HTML splash screen once React is running
+  useEffect(() => { if (window.__removeSplash) window.__removeSplash(); }, []);
+
+  // Branded loading screen component (shared by auth + sub loading)
+  const LoadingScreen = ({ message }) => (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", padding: 20 }}>
+      <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, boxShadow: `0 8px 32px ${C.green}20` }}>
+        <I.Shield s={28} style={{ color: "#fff" }} />
       </div>
+      <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 20, fontWeight: 700, color: C.bright, letterSpacing: "0.06em", marginBottom: 6 }}>AGENTSLOCK</div>
+      <div style={{ color: C.dim, fontSize: 12, marginBottom: 24 }}>Personal Cybersecurity Platform</div>
+      <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 14 }} />
+      <div style={{ color: C.dim, fontSize: 12 }}>{message}</div>
     </div>
   );
+
+  // Loading screen
+  if (loading) return <LoadingScreen message="Loading AgentsLock..." />;
 
   if (!user) return <AuthScreen onLogin={login} onSignup={signup} />;
 
@@ -1724,14 +1777,7 @@ export default function App() {
   }
 
   // Wait for subscription check before showing dashboard
-  if (!subLoaded) return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ width: 48, height: 48, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-        <div style={{ color: C.dim, fontSize: 13 }}>Checking subscription...</div>
-      </div>
-    </div>
-  );
+  if (!subLoaded) return <LoadingScreen message="Checking subscription..." />;
 
   const activeThreats = threats.filter(t => t.status === "active").length;
   const userName = user.displayName || user.email?.split("@")[0] || "User";
