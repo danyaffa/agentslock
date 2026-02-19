@@ -65,3 +65,16 @@ export async function saveUserData(uid, field, value) {
     }
   }
 }
+
+// ─── Subscription helpers ───────────────────────────────────────────────────
+export async function saveSubscription(uid, subscriptionData) {
+  await setDoc(doc(db, "users", uid), { subscription: subscriptionData }, { merge: true });
+}
+
+export async function loadSubscription(uid) {
+  const snap = await getDoc(doc(db, "users", uid));
+  if (snap.exists()) {
+    return snap.data().subscription || null;
+  }
+  return null;
+}
