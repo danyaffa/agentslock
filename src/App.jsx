@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { auth, db, signUp, logIn, logOut, onAuth, loadUserData, saveUserData } from "./firebase.js";
+import { auth, db, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
@@ -44,6 +44,9 @@ const I = {
   Crosshair: icon(<><circle cx="12" cy="12" r="10" /><line x1="22" y1="12" x2="18" y2="12" /><line x1="6" y1="12" x2="2" y2="12" /><line x1="12" y1="6" x2="12" y2="2" /><line x1="12" y1="22" x2="12" y2="18" /></>),
   Bell: icon(<><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></>),
   BarChart: icon(<><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" /></>),
+  DollarSign: icon(<><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></>),
+  CreditCard: icon(<><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></>),
+  Star: icon(<><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></>),
   LogIn: icon(<><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></>),
   LogOut: icon(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></>),
   Settings: icon(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>),
@@ -250,6 +253,170 @@ function AuthScreen({ onLogin, onSignup }) {
           🔒 Secured by Firebase Authentication & Firestore
         </p>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUBSCRIPTION / PAYWALL SCREEN
+// PayPal Integration — $18 USD/month
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// *** IMPORTANT: Replace this with your PayPal Subscription Plan ID ***
+// Create a plan at: https://www.paypal.com/billing/plans
+const PAYPAL_PLAN_ID = "YOUR_PAYPAL_PLAN_ID";
+
+function SubscriptionScreen({ user, onSubscribed, onLogout }) {
+  const paypalRef = useRef(null);
+  const [paypalReady, setPaypalReady] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Wait for PayPal SDK to load
+    const checkPayPal = setInterval(() => {
+      if (window.paypal) {
+        setPaypalReady(true);
+        clearInterval(checkPayPal);
+      }
+    }, 500);
+    return () => clearInterval(checkPayPal);
+  }, []);
+
+  useEffect(() => {
+    if (!paypalReady || !paypalRef.current) return;
+    // Clear any previous buttons
+    paypalRef.current.innerHTML = "";
+
+    window.paypal.Buttons({
+      style: {
+        shape: "rect",
+        color: "gold",
+        layout: "vertical",
+        label: "subscribe",
+      },
+      createSubscription: (data, actions) => {
+        return actions.subscription.create({
+          plan_id: PAYPAL_PLAN_ID,
+        });
+      },
+      onApprove: async (data) => {
+        setProcessing(true);
+        setError("");
+        try {
+          const subData = {
+            subscriptionId: data.subscriptionID,
+            status: "active",
+            plan: "monthly",
+            amount: 18,
+            currency: "USD",
+            subscribedAt: new Date().toISOString(),
+            provider: "paypal",
+          };
+          await saveSubscription(user.uid, subData);
+          onSubscribed(subData);
+        } catch (e) {
+          setError("Failed to save subscription. Please contact support.");
+          setProcessing(false);
+        }
+      },
+      onError: (err) => {
+        setError("Payment failed. Please try again.");
+        console.error("PayPal error:", err);
+      },
+    }).render(paypalRef.current);
+  }, [paypalReady, user?.uid]);
+
+  const features = [
+    { icon: <I.Shield />, text: "Full Cybersecurity Dashboard" },
+    { icon: <I.Database />, text: "Breach & Dark Web Monitoring" },
+    { icon: <I.Key />, text: "Password Strength Analyzer" },
+    { icon: <I.Globe />, text: "Website Vulnerability Scanner" },
+    { icon: <I.Monitor />, text: "Device Security Checklist" },
+    { icon: <I.Activity />, text: "Real-Time Uptime Monitoring" },
+    { icon: <I.Alert />, text: "Threat Intelligence Center" },
+    { icon: <I.BarChart />, text: "Security Reports & Scoring" },
+    { icon: <I.Zap />, text: "Incident Response Playbooks" },
+    { icon: <I.Server />, text: "Firebase Cloud Sync & Backup" },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Space Grotesk', sans-serif", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 20px" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: 36 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: `0 8px 32px ${C.green}30` }}>
+          <I.Shield s={32} style={{ color: "#fff" }} />
+        </div>
+        <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 32, color: C.bright, margin: "0 0 6px", letterSpacing: "0.06em" }}>AGENTSLOCK</h1>
+        <p style={{ color: C.dim, fontSize: 13 }}>Personal Cybersecurity Platform</p>
+        <div style={{ color: C.dim, fontSize: 12, marginTop: 8 }}>Welcome, <span style={{ color: C.bright }}>{user.displayName || user.email?.split("@")[0]}</span></div>
+      </div>
+
+      {/* Pricing Card */}
+      <div style={{ width: "100%", maxWidth: 480, marginBottom: 32 }}>
+        <Card style={{ position: "relative", overflow: "hidden", border: `1px solid ${C.green}40` }}>
+          {/* Glow accent */}
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${C.green}, ${C.blue}, ${C.green})`, backgroundSize: "200% auto", animation: "shimmer 3s linear infinite" }} />
+
+          <div style={{ textAlign: "center", paddingTop: 8, marginBottom: 24 }}>
+            <Badge color={C.green} style={{ fontSize: 11, padding: "4px 14px", marginBottom: 12, display: "inline-block" }}>PRO PLAN</Badge>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, marginTop: 12 }}>
+              <span style={{ fontFamily: "'Chakra Petch'", fontSize: 48, fontWeight: 700, color: C.bright }}>$18</span>
+              <span style={{ color: C.dim, fontSize: 16 }}>USD / month</span>
+            </div>
+            <p style={{ color: C.dim, fontSize: 12, marginTop: 8 }}>Full access to all cybersecurity tools</p>
+          </div>
+
+          {/* Features List */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 28 }}>
+            {features.map((f, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: C.bg, borderRadius: 8, fontSize: 11, color: C.text }}>
+                <span style={{ color: C.green, flexShrink: 0 }}>{f.icon}</span>
+                {f.text}
+              </div>
+            ))}
+          </div>
+
+          {/* PayPal Button Container */}
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
+            {processing ? (
+              <div style={{ textAlign: "center", padding: 20 }}>
+                <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+                <div style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>Activating your subscription...</div>
+              </div>
+            ) : !paypalReady ? (
+              <div style={{ textAlign: "center", padding: 20 }}>
+                <div style={{ width: 28, height: 28, border: `3px solid ${C.border}`, borderTopColor: C.blue, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                <div style={{ color: C.dim, fontSize: 12 }}>Loading PayPal...</div>
+              </div>
+            ) : (
+              <div ref={paypalRef} />
+            )}
+
+            {error && (
+              <div style={{ padding: "10px 14px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 8, color: C.red, fontSize: 12, marginTop: 12, textAlign: "center" }}>{error}</div>
+            )}
+          </div>
+
+          {/* Security badge */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 16, color: C.dim, fontSize: 10 }}>
+            <I.Lock s={12} />
+            Secured by PayPal — Cancel anytime from your PayPal account
+          </div>
+        </Card>
+      </div>
+
+      {/* Sign out option */}
+      <button onClick={onLogout} style={{ background: "none", border: "none", color: C.dim, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, transition: "color 0.2s" }}
+        onMouseOver={e => e.currentTarget.style.color = C.red} onMouseOut={e => e.currentTarget.style.color = C.dim}>
+        <I.LogOut s={14} /> Sign out
+      </button>
     </div>
   );
 }
@@ -944,7 +1111,7 @@ function IncidentTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 11: SETTINGS (Phase 3)
 // ═══════════════════════════════════════════════════════════════════════════════
-function SettingsTab({ user, logout, setLegalPage }) {
+function SettingsTab({ user, logout, setLegalPage, subscription }) {
   const [hibpKey, setHibpKey] = useState(() => LS.get("hibpKey", ""));
   const [notifsOn, setNotifsOn] = useState(() => LS.get("notifs", true));
   const [autoScan, setAutoScan] = useState(() => LS.get("autoScan", false));
@@ -963,6 +1130,29 @@ function SettingsTab({ user, logout, setLegalPage }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.bg, borderRadius: 8 }}>
             <div><div style={{ color: C.bright, fontWeight: 600 }}>{user?.displayName || "User"}</div><div style={{ color: C.dim, fontSize: 12 }}>{user?.email}</div><div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>UID: {user?.uid?.slice(0,12)}...</div></div>
             <Btn onClick={logout} color={C.red}><I.LogOut /> Sign Out</Btn>
+          </div>
+        </Sect>
+      </Card>
+
+      <Card glow={C.green}>
+        <Sect title="Subscription" icon={<I.CreditCard />}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.bg, borderRadius: 8 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ color: C.bright, fontWeight: 600 }}>Pro Plan</span>
+                <Badge color={C.green}>ACTIVE</Badge>
+              </div>
+              <div style={{ color: C.dim, fontSize: 12 }}>$18.00 USD / month via PayPal</div>
+              {subscription?.subscribedAt && (
+                <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>
+                  Subscribed: {new Date(subscription.subscribedAt).toLocaleDateString()}
+                  {subscription.subscriptionId && <> &middot; ID: {subscription.subscriptionId.slice(0, 12)}...</>}
+                </div>
+              )}
+            </div>
+            <a href="https://www.paypal.com/myaccount/autopay" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+              <Btn color={C.blue}><I.ExternalLink /> Manage</Btn>
+            </a>
           </div>
         </Sect>
       </Card>
@@ -1452,8 +1642,19 @@ export default function App() {
   const [now, setNow] = useState(new Date());
   const [dataLoaded, setDataLoaded] = useState(false);
   const [legalPage, setLegalPage] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [subLoaded, setSubLoaded] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+
+  // Load subscription status on login
+  useEffect(() => {
+    if (!user) { setSubLoaded(false); setSubscription(null); return; }
+    loadSubscription(user.uid).then(sub => {
+      setSubscription(sub);
+      setSubLoaded(true);
+    }).catch(() => setSubLoaded(true));
+  }, [user?.uid]);
 
   // Load user data from Firestore on login
   useEffect(() => {
@@ -1519,6 +1720,21 @@ export default function App() {
 
   if (!user) return <AuthScreen onLogin={login} onSignup={signup} />;
 
+  // Show subscription screen if user hasn't subscribed
+  if (subLoaded && (!subscription || subscription.status !== "active")) {
+    return <SubscriptionScreen user={user} onSubscribed={(sub) => setSubscription(sub)} onLogout={logout} />;
+  }
+
+  // Wait for subscription check before showing dashboard
+  if (!subLoaded) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 48, height: 48, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+        <div style={{ color: C.dim, fontSize: 13 }}>Checking subscription...</div>
+      </div>
+    </div>
+  );
+
   const activeThreats = threats.filter(t => t.status === "active").length;
   const userName = user.displayName || user.email?.split("@")[0] || "User";
 
@@ -1571,7 +1787,7 @@ export default function App() {
         {tab==="monitor" && <MonitorTab monitors={monitors} setMonitors={setMonitorsAndSave} />}
         {tab==="reports" && <ReportTab checks={checks} threats={threats} accounts={accounts} monitors={monitors} scanLog={scanLog} />}
         {tab==="incident" && <IncidentTab />}
-        {tab==="settings" && <SettingsTab user={user} logout={logout} setLegalPage={setLegalPage} />}
+        {tab==="settings" && <SettingsTab user={user} logout={logout} setLegalPage={setLegalPage} subscription={subscription} />}
       </main>
 
       <footer style={{ borderTop:`1px solid ${C.border}`, padding:"24px 24px 20px", color:C.dim, fontSize:11, lineHeight:1.8 }}>
