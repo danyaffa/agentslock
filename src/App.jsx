@@ -467,7 +467,42 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 1: OVERVIEW DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab, addLog }) {
+// ── Apply a single runtime protection by fix ID (survives within session) ──
+function applyProtection(fixId) {
+  try {
+    if (fixId === "block-webrtc" && !window.__alWebrtcBlocked) {
+      window.__alWebrtcBlocked = true;
+      const orig = window.RTCPeerConnection;
+      if (orig) window.RTCPeerConnection = function() { if (window.__alWebrtcBlocked) throw new Error("WebRTC blocked by AgentsLock"); return new orig(...arguments); };
+    }
+    if (fixId === "spoof-fingerprint" && !window.__alFingerprintSpoofed) {
+      window.__alFingerprintSpoofed = true;
+      Object.defineProperty(navigator, "hardwareConcurrency", { get: () => [2, 4, 8][Math.floor(Math.random() * 3)], configurable: true });
+      Object.defineProperty(navigator, "deviceMemory", { get: () => [4, 8][Math.floor(Math.random() * 2)], configurable: true });
+      Object.defineProperty(navigator, "platform", { get: () => "Win32", configurable: true });
+    }
+    if (fixId === "enable-dnt-header" && navigator.doNotTrack !== "1") {
+      Object.defineProperty(navigator, "doNotTrack", { get: () => "1", configurable: true });
+    }
+    if (fixId === "clear-cookies") {
+      document.cookie.split(";").forEach(c => { const name = c.split("=")[0].trim(); document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`; });
+    }
+    if (fixId === "deploy-https" && location.protocol === "http:") {
+      const meta = document.createElement("meta"); meta.httpEquiv = "Content-Security-Policy"; meta.content = "upgrade-insecure-requests"; document.head.appendChild(meta);
+    }
+    if (fixId?.startsWith("revoke-perm-")) {
+      const perm = fixId.replace("revoke-perm-", "");
+      if (perm === "geolocation" && navigator.geolocation) { navigator.geolocation.getCurrentPosition = (s, e) => e?.(new GeolocationPositionError()); navigator.geolocation.watchPosition = (s, e) => { e?.(new GeolocationPositionError()); return 0; }; }
+      if (perm === "notifications" && window.Notification) { window.Notification.requestPermission = async () => "denied"; window.Notification = class { constructor() { throw new Error("Notifications blocked by AgentsLock"); } }; }
+      if (perm === "camera" || perm === "microphone") {
+        const origGUM = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+        if (origGUM) { navigator.mediaDevices.getUserMedia = async (constraints) => { if ((perm === "camera" && constraints?.video) || (perm === "microphone" && constraints?.audio)) throw new DOMException("Blocked by AgentsLock", "NotAllowedError"); return origGUM(constraints); }; }
+      }
+    }
+  } catch {}
+}
+
+function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
   const totalChecks = Object.values(DEVICE_CHECKS).flat().length;
   const doneChecks = Object.keys(checks).filter(k => checks[k]).length;
   const score = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
@@ -480,10 +515,14 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
   const [scanProgress, setScanProgress] = useState(0);
   const [scanPhase, setScanPhase] = useState("");
   const [findings, setFindings] = useState(null);
-  const [cleaned, setCleaned] = useState({});
+  const cleaned = deviceCleaned;
+  const setCleaned = setDeviceCleaned; // React's native setState — properly handles functional updates
+  // Keep a ref to deviceCleaned so async functions always read the latest value (no stale closures)
+  const cleanedRef = useRef(deviceCleaned);
+  cleanedRef.current = deviceCleaned;
 
   const runDeviceScan = async () => {
-    setScanning(true); setFindings(null); setCleaned({}); setEliminating(false); setElimProgress(null);
+    setScanning(true); setFindings(null); setEliminating(false); setElimProgress(null);
     const results = [];
     const pageOrigin = location.origin || location.href;
     const pageHost = location.hostname || "localhost";
@@ -492,15 +531,24 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
     let publicIP = null;
     try { const r = await fetch("https://api.ipify.org?format=json"); const d = await r.json(); publicIP = d.ip; } catch {}
 
+    // Helper: check if a threat was already eliminated (uses ref for latest state)
+    const wasEliminated = (id) => cleanedRef.current[id] === "done";
+
     const steps = [
       { phase: "Checking browser security...", pct: 10, run: () => {
-        const isHttps = location.protocol === "https:";
-        if (!isHttps) results.push({ id: "no-https", sev: "critical", cat: "Browser", name: "Insecure Connection", desc: "Page not served over HTTPS — data can be intercepted", fix: "deploy-https", fixLabel: "Eliminate", elimDesc: "Force-redirect all requests to HTTPS and block insecure resources", origin: pageOrigin, originType: "address" });
-        const ua = navigator.userAgent;
-        const isOldBrowser = /MSIE|Trident/.test(ua);
-        if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: "block-old-browser", fixLabel: "Eliminate", elimDesc: "Block unsafe legacy APIs and apply security shims", origin: navigator.userAgent.match(/(MSIE\s[\d.]+|Trident\/[\d.]+)/)?.[0] || "Internet Explorer", originType: "browser" });
-        const dnt = navigator.doNotTrack;
-        if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: "enable-dnt-header", fixLabel: "Eliminate", elimDesc: "Inject DNT headers into app requests to signal tracking opt-out", origin: `${navigator.vendor || "Browser"} — ${pageHost}`, originType: "browser" });
+        if (!wasEliminated("no-https")) {
+          const isHttps = location.protocol === "https:";
+          if (!isHttps) results.push({ id: "no-https", sev: "critical", cat: "Browser", name: "Insecure Connection", desc: "Page not served over HTTPS — data can be intercepted", fix: "deploy-https", fixLabel: "Eliminate", elimDesc: "Force-redirect all requests to HTTPS and block insecure resources", origin: pageOrigin, originType: "address" });
+        }
+        if (!wasEliminated("old-browser")) {
+          const ua = navigator.userAgent;
+          const isOldBrowser = /MSIE|Trident/.test(ua);
+          if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: "block-old-browser", fixLabel: "Eliminate", elimDesc: "Block unsafe legacy APIs and apply security shims", origin: navigator.userAgent.match(/(MSIE\s[\d.]+|Trident\/[\d.]+)/)?.[0] || "Internet Explorer", originType: "browser" });
+        }
+        if (!wasEliminated("no-dnt")) {
+          const dnt = navigator.doNotTrack;
+          if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: "enable-dnt-header", fixLabel: "Eliminate", elimDesc: "Inject DNT headers into app requests to signal tracking opt-out", origin: `${navigator.vendor || "Browser"} — ${pageHost}`, originType: "browser" });
+        }
       }},
       { phase: "Scanning cookies & tracking...", pct: 25, run: () => {
         const cookies = document.cookie.split(";").filter(c => c.trim());
@@ -521,6 +569,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         if (ssCount > 10) results.push({ id: "session-data", sev: "low", cat: "Storage", name: `${ssCount} sessionStorage items`, desc: "Temporary session data could expose activity if device is shared", fix: "clear-ss", fixLabel: "Eliminate", elimDesc: "Wipe all session data to prevent exposure on shared devices", origin: `${pageHost}/sessionStorage (${ssCount} keys)`, originType: "storage" });
       }},
       { phase: "Testing WebRTC leak...", pct: 55, run: async () => {
+        if (wasEliminated("webrtc-leak")) return; // Already blocked
         try {
           const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
           pc.createDataChannel("");
@@ -537,6 +586,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
       { phase: "Checking permissions...", pct: 70, run: async () => {
         const permsToCheck = ["camera", "microphone", "geolocation", "notifications"];
         for (const p of permsToCheck) {
+          if (wasEliminated(`perm-${p}`)) continue; // Already revoked
           try {
             const status = await navigator.permissions.query({ name: p });
             if (status.state === "granted") results.push({ id: `perm-${p}`, sev: p === "geolocation" ? "high" : "medium", cat: "Permissions", name: `${p.charAt(0).toUpperCase() + p.slice(1)} access granted`, desc: `Website has ${p} permission — revoke if not needed`, fix: `revoke-perm-${p}`, fixLabel: "Eliminate", elimDesc: `Block ${p} API access for this page and clear granted permission`, origin: `${pageHost} → navigator.${p === "notifications" ? "Notification" : p === "camera" || p === "microphone" ? "mediaDevices" : p}`, originType: "api" });
@@ -544,16 +594,19 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         }
       }},
       { phase: "Analyzing device exposure...", pct: 85, run: () => {
-        const cores = navigator.hardwareConcurrency;
-        const mem = navigator.deviceMemory;
-        const platform = navigator.platform;
-        let fpPoints = 0; const fpAPIs = [];
-        if (cores) { fpPoints++; fpAPIs.push("hardwareConcurrency"); }
-        if (mem) { fpPoints++; fpAPIs.push("deviceMemory"); }
-        if (platform) { fpPoints++; fpAPIs.push("platform"); }
-        if (navigator.languages?.length > 1) { fpPoints++; fpAPIs.push("languages"); }
-        if (screen.colorDepth) { fpPoints++; fpAPIs.push("screen.colorDepth"); }
-        if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking", origin: `navigator.{${fpAPIs.join(", ")}}`, originType: "api" });
+        // Skip fingerprint check if already eliminated or spoofed by AgentsLock
+        if (!wasEliminated("fingerprint") && !window.__alFingerprintSpoofed) {
+          const cores = navigator.hardwareConcurrency;
+          const mem = navigator.deviceMemory;
+          const platform = navigator.platform;
+          let fpPoints = 0; const fpAPIs = [];
+          if (cores) { fpPoints++; fpAPIs.push("hardwareConcurrency"); }
+          if (mem) { fpPoints++; fpAPIs.push("deviceMemory"); }
+          if (platform) { fpPoints++; fpAPIs.push("platform"); }
+          if (navigator.languages?.length > 1) { fpPoints++; fpAPIs.push("languages"); }
+          if (screen.colorDepth) { fpPoints++; fpAPIs.push("screen.colorDepth"); }
+          if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking", origin: `navigator.{${fpAPIs.join(", ")}}`, originType: "api" });
+        }
         const conn = navigator.connection;
         if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: "optimize-net", fixLabel: "Eliminate", elimDesc: "Enable request compression and reduce payload sizes for faster operations", origin: `${conn.effectiveType} via navigator.connection`, originType: "api" });
       }},
@@ -581,11 +634,16 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
     setScanPhase("Scan complete");
     await new Promise(r => setTimeout(r, 300));
 
-    if (results.length === 0) results.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks", fix: null, fixLabel: null, elimDesc: null, origin: null });
+    // Filter out threats that were already eliminated (protections active)
+    // Use ref to get the latest deviceCleaned value (avoids stale closure in async function)
+    const currentCleaned = cleanedRef.current;
+    const filtered = results.filter(r => currentCleaned[r.id] !== "done");
 
-    setFindings(results);
+    if (filtered.length === 0) filtered.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks — previously eliminated threats remain blocked", fix: null, fixLabel: null, elimDesc: null, origin: null });
+
+    setFindings(filtered);
     setScanning(false);
-    addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: results.every(r => r.sev === "safe" || r.sev === "low") });
+    addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: filtered.every(r => r.sev === "safe" || r.sev === "low") });
   };
 
   // ── Safe elimination actions per fix type ──
@@ -594,42 +652,31 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
     await new Promise(r => setTimeout(r, 500));
     try {
       const f = finding.fix;
-      // Cookie cleanup
-      if (f === "clear-cookies") { document.cookie.split(";").forEach(c => { const name = c.split("=")[0].trim(); document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`; }); }
+      // Use shared protection applier for runtime overrides
+      applyProtection(f);
       // localStorage cleanup (preserve app data)
       if (f === "clear-ls-other") { const keep = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith("al_")) keep.push([k, localStorage.getItem(k)]); } localStorage.clear(); keep.forEach(([k, v]) => localStorage.setItem(k, v)); }
       // Session data wipe
       if (f === "clear-ss") { sessionStorage.clear(); }
       // Cache purge
       if (f === "clear-cache") { if ("caches" in window) { const names = await caches.keys(); await Promise.all(names.map(n => caches.delete(n))); } }
-      // WebRTC leak block — override RTCPeerConnection to prevent IP leak
-      if (f === "block-webrtc") { window.__alWebrtcBlocked = true; const orig = window.RTCPeerConnection; window.RTCPeerConnection = function() { if (window.__alWebrtcBlocked) throw new Error("WebRTC blocked by AgentsLock"); return new orig(...arguments); }; }
-      // Permission revoke — override the API to deny access
-      if (f?.startsWith("revoke-perm-")) {
-        const perm = f.replace("revoke-perm-", "");
-        if (perm === "geolocation" && navigator.geolocation) { navigator.geolocation.getCurrentPosition = (s, e) => e?.(new GeolocationPositionError()); navigator.geolocation.watchPosition = (s, e) => { e?.(new GeolocationPositionError()); return 0; }; }
-        if (perm === "notifications" && window.Notification) { window.Notification.requestPermission = async () => "denied"; window.Notification = class { constructor() { throw new Error("Notifications blocked by AgentsLock"); } }; }
-        if (perm === "camera" || perm === "microphone") {
-          const origGUM = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
-          if (origGUM) { navigator.mediaDevices.getUserMedia = async (constraints) => { if ((perm === "camera" && constraints?.video) || (perm === "microphone" && constraints?.audio)) throw new DOMException("Blocked by AgentsLock", "NotAllowedError"); return origGUM(constraints); }; }
-        }
-      }
-      // Fingerprint spoofing — randomize exposed values
-      if (f === "spoof-fingerprint") {
-        Object.defineProperty(navigator, "hardwareConcurrency", { get: () => [2, 4, 8][Math.floor(Math.random() * 3)], configurable: true });
-        Object.defineProperty(navigator, "deviceMemory", { get: () => [4, 8][Math.floor(Math.random() * 2)], configurable: true });
-        Object.defineProperty(navigator, "platform", { get: () => "Win32", configurable: true });
-      }
-      // HTTPS enforcement
-      if (f === "deploy-https") { if (location.protocol === "http:") { const meta = document.createElement("meta"); meta.httpEquiv = "Content-Security-Policy"; meta.content = "upgrade-insecure-requests"; document.head.appendChild(meta); } }
       // Old browser mitigation
       if (f === "block-old-browser") { const meta = document.createElement("meta"); meta.httpEquiv = "X-UA-Compatible"; meta.content = "IE=edge"; document.head.appendChild(meta); }
-      // DNT signal injection
-      if (f === "enable-dnt-header") { Object.defineProperty(navigator, "doNotTrack", { get: () => "1", configurable: true }); }
       // Network optimization placeholder
       if (f === "optimize-net") { /* compression handled at request level */ }
     } catch {}
     setCleaned(p => ({ ...p, [finding.id]: "done" }));
+    // Update ref immediately so any subsequent scan sees the latest state
+    cleanedRef.current = { ...cleanedRef.current, [finding.id]: "done" };
+    // Remove from findings list after a short delay (let the "Eliminated" badge show briefly)
+    setTimeout(() => {
+      setFindings(prev => {
+        if (!prev) return prev;
+        const remaining = prev.filter(f => f.id !== finding.id);
+        if (remaining.length === 0 || remaining.every(f => f.sev === "safe")) return [{ id: "all-clear", sev: "safe", cat: "System", name: "All threats eliminated", desc: "Your device passed all security checks — previously eliminated threats remain blocked", fix: null, fixLabel: null, elimDesc: null, origin: null }];
+        return remaining;
+      });
+    }, 1200);
   };
 
   // ── Eliminate All Threats ──
@@ -638,7 +685,8 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
 
   const eliminateAll = async () => {
     if (!findings) return;
-    const actionable = findings.filter(f => f.sev !== "safe" && f.fix && cleaned[f.id] !== "done");
+    // Use ref for latest cleaned state to avoid stale closure
+    const actionable = findings.filter(f => f.sev !== "safe" && f.fix && cleanedRef.current[f.id] !== "done");
     if (actionable.length === 0) return;
     setEliminating(true);
     setElimProgress({ done: 0, total: actionable.length, current: "" });
@@ -648,6 +696,13 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
       setElimProgress({ done: i + 1, total: actionable.length, current: actionable[i].name });
     }
     setEliminating(false);
+    // Remove eliminated threats from findings — show only safe result
+    setFindings(prev => {
+      if (!prev) return prev;
+      const remaining = prev.filter(f => f.sev === "safe" || !actionable.find(a => a.id === f.id));
+      if (remaining.length === 0) return [{ id: "all-clear", sev: "safe", cat: "System", name: "All threats eliminated", desc: "Your device passed all security checks — previously eliminated threats remain blocked", fix: null, fixLabel: null, elimDesc: null, origin: null }];
+      return remaining;
+    });
     addLog({ type: "Eliminate", target: `${actionable.length} threats`, safe: true });
   };
 
@@ -791,7 +846,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
               {/* Actions row */}
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <Btn onClick={runDeviceScan} color={C.cyan} style={{ fontSize: 11 }}><I.Refresh /> Scan Again</Btn>
-                <Btn onClick={() => { setFindings(null); setCleaned({}); setElimProgress(null); }} color={C.dim} style={{ fontSize: 11 }}><I.X /> Dismiss</Btn>
+                <Btn onClick={() => { setFindings(null); setElimProgress(null); }} color={C.dim} style={{ fontSize: 11 }}><I.X /> Dismiss</Btn>
               </div>
             </div>
           )}
@@ -2018,6 +2073,7 @@ export default function App() {
   const [accounts, setAccounts] = useState(INIT_ACCOUNTS);
   const [monitors, setMonitors] = useState([]);
   const [scanLog, setScanLog] = useState([]);
+  const [deviceCleaned, setDeviceCleaned] = useState(() => LS.get("deviceCleaned", {}));
   const [now, setNow] = useState(new Date());
   const [dataLoaded, setDataLoaded] = useState(false);
   const [legalPage, setLegalPage] = useState(null);
@@ -2045,6 +2101,7 @@ export default function App() {
         if (data.accounts?.length) setAccounts(data.accounts);
         if (data.monitors?.length) setMonitors(data.monitors);
         if (data.scanLog?.length) setScanLog(data.scanLog);
+        if (data.deviceCleaned && Object.keys(data.deviceCleaned).length) setDeviceCleaned(data.deviceCleaned);
       }
       setDataLoaded(true);
     }).catch(() => setDataLoaded(true));
@@ -2067,6 +2124,28 @@ export default function App() {
   const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); };
   const setAccountsAndSave = (v) => { const nv = typeof v === "function" ? v(accounts) : v; setAccounts(nv); autoSave("accounts", nv); };
   const setMonitorsAndSave = (v) => { const nv = typeof v === "function" ? v(monitors) : v; setMonitors(nv); autoSave("monitors", nv); };
+  // Auto-save deviceCleaned whenever it changes (useEffect avoids stale closure issues with functional setState)
+  const deviceCleanedLoaded = useRef(false);
+  useEffect(() => {
+    if (!deviceCleanedLoaded.current) { deviceCleanedLoaded.current = true; return; }
+    if (!user || !dataLoaded) return;
+    autoSave("deviceCleaned", deviceCleaned);
+  }, [deviceCleaned]);
+
+  // Re-apply runtime protections on startup for all previously eliminated threats
+  const protectionsBootstrapped = useRef(false);
+  useEffect(() => {
+    if (protectionsBootstrapped.current) return;
+    const doneItems = Object.entries(deviceCleaned).filter(([, v]) => v === "done");
+    if (doneItems.length > 0) {
+      protectionsBootstrapped.current = true;
+      const fixMap = { "webrtc-leak": "block-webrtc", "fingerprint": "spoof-fingerprint", "no-dnt": "enable-dnt-header", "no-https": "deploy-https" };
+      doneItems.forEach(([id]) => {
+        const fixId = fixMap[id] || (id.startsWith("perm-") ? `revoke-${id}` : null);
+        if (fixId) applyProtection(fixId);
+      });
+    }
+  }, [deviceCleaned]);
   const addLog = (entry) => { const n = [{ ...entry, time: new Date().toISOString() }, ...scanLog].slice(0, 100); setScanLog(n); autoSave("scanLog", n); };
 
   // Auto-check monitors every 5 min
@@ -2193,7 +2272,7 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
