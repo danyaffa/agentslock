@@ -944,7 +944,7 @@ function IncidentTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 11: SETTINGS (Phase 3)
 // ═══════════════════════════════════════════════════════════════════════════════
-function SettingsTab({ user, logout }) {
+function SettingsTab({ user, logout, setLegalPage }) {
   const [hibpKey, setHibpKey] = useState(() => LS.get("hibpKey", ""));
   const [notifsOn, setNotifsOn] = useState(() => LS.get("notifs", true));
   const [autoScan, setAutoScan] = useState(() => LS.get("autoScan", false));
@@ -1005,14 +1005,21 @@ function SettingsTab({ user, logout }) {
       </Card>
 
       <Card>
-        <Sect title="About" icon={<I.Shield />}>
+        <Sect title="About & Legal" icon={<I.Shield />}>
           <div style={{ color: C.text, fontSize: 12 }}>
             <div style={{ marginBottom: 4 }}><span style={{ color: C.bright, fontWeight: 600 }}>AgentsLock v4.0</span> — Firebase-Secured Cybersecurity Platform</div>
+            <div style={{ color: C.dim, marginBottom: 4 }}>Leffler International Investments Pty Ltd — ACN 124 089 345 / ABN 90 124 089 345</div>
             <div style={{ color: C.dim }}>React + Vite + Firebase Auth + Firestore. Real-time cloud sync. PWA enabled.</div>
-            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+            <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <a href="https://agentslock.com" target="_blank" rel="noopener" style={{ color: C.green, textDecoration: "none", fontSize: 11 }}>agentslock.com</a>
               <a href="https://github.com/danyaffa/agentslock" target="_blank" rel="noopener" style={{ color: C.blue, textDecoration: "none", fontSize: 11 }}>GitHub</a>
+              <span style={{ color: C.border }}>|</span>
+              <button onClick={()=>setLegalPage("terms")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>Terms of Service</button>
+              <button onClick={()=>setLegalPage("privacy")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>Privacy Policy</button>
+              <button onClick={()=>setLegalPage("disclaimer")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>Disclaimer</button>
+              <button onClick={()=>setLegalPage("about")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>About</button>
             </div>
+            <div style={{ marginTop: 8, fontSize: 10, color: C.dim }}>{"\u00A9"} 2026 AgentsLock — All rights reserved. No reproduction without permission.</div>
           </div>
         </Sect>
       </Card>
@@ -1021,144 +1028,375 @@ function SettingsTab({ user, logout }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LEGAL PAGES
+// LEGAL OVERLAY — Terms, Privacy, Disclaimer, About
 // ═══════════════════════════════════════════════════════════════════════════════
-const LEGAL = {
-  terms: { title: "Terms of Service", content: `Last updated: February 19, 2026
+function LegalOverlay({ page, onClose }) {
+  if (!page) return null;
 
-1. ACCEPTANCE OF TERMS
-By accessing or using AgentsLock ("the Service"), operated by Leffler International Investments Pty Ltd (ACN 124 089 345, ABN 90 124 089 345), you agree to be bound by these Terms of Service.
+  const heading = (text) => (
+    <h2 style={{ fontFamily:"'Chakra Petch', sans-serif", fontSize:18, fontWeight:700, color:C.bright, margin:"28px 0 12px", borderBottom:`1px solid ${C.border}`, paddingBottom:8 }}>{text}</h2>
+  );
+  const subH = (text) => (
+    <h3 style={{ fontFamily:"'Chakra Petch', sans-serif", fontSize:14, fontWeight:600, color:C.green, margin:"20px 0 8px" }}>{text}</h3>
+  );
+  const para = (text) => (
+    <p style={{ color:C.text, fontSize:13, lineHeight:1.7, marginBottom:10 }}>{text}</p>
+  );
+  const listItem = (text) => (
+    <li style={{ color:C.text, fontSize:13, lineHeight:1.7, marginBottom:4, paddingLeft:4 }}>{text}</li>
+  );
 
-2. DESCRIPTION OF SERVICE
-AgentsLock is a personal cybersecurity dashboard that provides security monitoring, breach checking, password analysis, device hardening recommendations, and incident response tools. The Service is provided "as is" and "as available."
+  const COMPANY = {
+    name: "Leffler International Investments Pty Ltd",
+    brand: "AgentsLock",
+    acn: "ACN 124 089 345",
+    abn: "ABN 90 124 089 345",
+    address: "Level 2, 222 Pitt Street, Sydney NSW 2000, Australia",
+    phone: "0478 965 828",
+    email: "support@agentslock.com",
+    website: "agentslock.com",
+  };
 
-3. USER ACCOUNTS
-You are responsible for maintaining the confidentiality of your account credentials. You must provide accurate registration information. You are responsible for all activities under your account.
+  const lastUpdated = "1 January 2026";
 
-4. ACCEPTABLE USE
-You agree not to: (a) use the Service for any unlawful purpose; (b) attempt to gain unauthorized access to other users' data; (c) interfere with or disrupt the Service; (d) reverse engineer any aspect of the Service; (e) use the Service to attack or compromise third-party systems.
+  // ─── TERMS OF SERVICE ──────────────────────────────────────────────────────
+  const TermsContent = () => (
+    <>
+      {para(`These Terms of Service ("Terms") govern your access to and use of the AgentsLock cybersecurity platform ("Service"), operated by ${COMPANY.name} (${COMPANY.acn} / ${COMPANY.abn}), trading as ${COMPANY.brand}. By accessing or using our Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.`)}
+      {para(`Last updated: ${lastUpdated}`)}
 
-5. INTELLECTUAL PROPERTY
-All content, features, and functionality of AgentsLock are owned by Leffler International Investments Pty Ltd and are protected by international copyright, trademark, and other intellectual property laws. No reproduction, distribution, or modification is permitted without prior written consent.
+      {heading("1. Acceptance of Terms")}
+      {para("By creating an account, accessing, or using AgentsLock in any way, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service, our Privacy Policy, and our Disclaimer. These documents together constitute a legally binding agreement between you and the Company.")}
+      {para("If you are using the Service on behalf of an organisation, you represent and warrant that you have authority to bind that organisation to these Terms.")}
 
-6. THIRD-PARTY SERVICES
-The Service integrates with third-party APIs including HaveIBeenPwned, SSL Labs, and Firebase. Use of these services is subject to their respective terms. We are not responsible for third-party service availability or accuracy.
+      {heading("2. Description of Service")}
+      {para("AgentsLock is a personal cybersecurity platform that provides tools including but not limited to: breach detection, password strength analysis, web security scanning, device hardening checklists, account security auditing, threat monitoring, uptime monitoring, incident response protocols, and security reporting.")}
+      {para("The Service is provided on an \"as available\" basis. Features may be added, modified, or removed at our sole discretion without prior notice.")}
 
-7. DISCLAIMER OF WARRANTIES
-THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR COMPLETELY SECURE.
+      {heading("3. User Accounts & Registration")}
+      {para("To use the Service, you must create an account using a valid email address. You are responsible for:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Maintaining the confidentiality of your account credentials")}
+        {listItem("All activities that occur under your account")}
+        {listItem("Providing accurate and current registration information")}
+        {listItem("Notifying us immediately of any unauthorised access")}
+      </ul>
+      {para("We reserve the right to suspend or terminate accounts that violate these Terms or are inactive for extended periods.")}
 
-8. LIMITATION OF LIABILITY
-TO THE MAXIMUM EXTENT PERMITTED BY AUSTRALIAN LAW, LEFFLER INTERNATIONAL INVESTMENTS PTY LTD SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF THE SERVICE.
+      {heading("4. Acceptable Use Policy")}
+      {para("You agree not to use the Service to:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Violate any applicable law, regulation, or third-party rights")}
+        {listItem("Conduct unauthorised security testing against systems you do not own or have permission to test")}
+        {listItem("Attempt to gain unauthorised access to any part of the Service or its infrastructure")}
+        {listItem("Reverse engineer, decompile, or disassemble the Service")}
+        {listItem("Transmit malware, viruses, or malicious code")}
+        {listItem("Use the Service for competitive intelligence or to build a competing product")}
+        {listItem("Impersonate any person or entity")}
+        {listItem("Interfere with, disrupt, or overburden the Service")}
+      </ul>
 
-9. SECURITY RECOMMENDATIONS
-Security recommendations provided by AgentsLock are informational only and do not constitute professional cybersecurity advice. Users should consult qualified professionals for specific security concerns.
+      {heading("5. Intellectual Property")}
+      {para(`All content, features, and functionality of the Service — including but not limited to software, code, design, text, graphics, logos, icons, the ${COMPANY.brand} name and brand — are the exclusive property of ${COMPANY.name} and are protected by Australian and international copyright, trademark, patent, trade secret, and other intellectual property laws.`)}
+      {para("No part of the Service may be reproduced, distributed, modified, or transmitted without express written permission from the Company.")}
+      {para(`All trademarks, service marks, and trade names used in the Service are trademarks or registered trademarks of ${COMPANY.name}. Third-party trademarks and data referenced within the Service belong to their respective owners.`)}
 
-10. DATA HANDLING
-User data is stored in Firebase (Google Cloud) infrastructure. We implement reasonable security measures but cannot guarantee absolute data security. See our Privacy Policy for details.
+      {heading("6. User Content & Data")}
+      {para("You retain ownership of any data you input into the Service. By using the Service, you grant us a limited licence to store, process, and display your data solely for the purpose of providing the Service to you.")}
+      {para("We do not sell, share, or distribute your personal data to third parties for marketing purposes. Data handling is governed by our Privacy Policy.")}
 
-11. TERMINATION
-We reserve the right to terminate or suspend access to the Service at our sole discretion, without notice, for conduct that we believe violates these Terms.
+      {heading("7. Third-Party Services")}
+      {para("The Service may integrate with or reference third-party services including Firebase (Google), breach databases (Have I Been Pwned), SSL verification services, and others. We are not responsible for the availability, accuracy, or practices of these third-party services.")}
+      {para("Your use of third-party services is subject to their respective terms and policies.")}
 
-12. GOVERNING LAW
-These Terms are governed by the laws of New South Wales, Australia. Any disputes shall be resolved in the courts of New South Wales.
+      {heading("8. Privacy")}
+      {para("Your use of the Service is also governed by our Privacy Policy, which details how we collect, use, store, and protect your personal information in compliance with the Australian Privacy Principles (APPs) under the Privacy Act 1988 (Cth).")}
 
-13. CONTACT
-Leffler International Investments Pty Ltd
-Level 2, 222 Pitt Street, Sydney 2000, Australia
-Phone: 0478 965 828` },
+      {heading("9. Disclaimers")}
+      {para("THE SERVICE IS PROVIDED \"AS IS\" AND \"AS AVAILABLE\" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.")}
+      {para("We do not warrant that the Service will be uninterrupted, error-free, or completely secure. No cybersecurity tool can guarantee absolute protection against all threats. Users remain responsible for their own security practices.")}
+      {para("AgentsLock does not provide financial, legal, tax, or professional advice. Any information provided through the Service is for informational and educational purposes only.")}
 
-  privacy: { title: "Privacy Policy", content: `Last updated: February 19, 2026
+      {heading("10. Limitation of Liability")}
+      {para(`TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, ${COMPANY.name.toUpperCase()} AND ITS DIRECTORS, OFFICERS, EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES, RESULTING FROM:`)}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Your access to, use of, or inability to use the Service")}
+        {listItem("Any security breach or unauthorised access to your data")}
+        {listItem("Any third-party conduct or content on the Service")}
+        {listItem("Any content obtained from the Service")}
+      </ul>
+      {para("Our total aggregate liability shall not exceed the amount you have paid us in the twelve (12) months preceding the claim.")}
 
-1. INFORMATION WE COLLECT
-Account Information: Email address, display name, and password (encrypted by Firebase Authentication).
-Usage Data: Security checklist progress, account security status, scan history, and monitoring configurations.
-Technical Data: Browser type, device type, and IP address (collected automatically by Firebase).
+      {heading("11. Indemnification")}
+      {para(`You agree to indemnify, defend, and hold harmless ${COMPANY.name}, its directors, officers, employees, agents, and affiliates from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable legal fees) arising out of or relating to your violation of these Terms or your use of the Service.`)}
 
-2. HOW WE USE YOUR INFORMATION
-To provide and maintain the Service.
-To authenticate your identity and secure your account.
-To store your security configurations and preferences.
-To improve the Service and user experience.
+      {heading("12. Governing Law & Jurisdiction")}
+      {para("These Terms shall be governed by and construed in accordance with the laws of New South Wales, Australia, without regard to its conflict of law provisions.")}
+      {para("Any disputes arising under or in connection with these Terms shall be subject to the exclusive jurisdiction of the courts of New South Wales, Australia.")}
+      {para("Nothing in these Terms excludes, restricts, or modifies any consumer rights under the Australian Consumer Law (Schedule 2 of the Competition and Consumer Act 2010 (Cth)) that cannot be excluded, restricted, or modified by agreement.")}
 
-3. DATA STORAGE
-All user data is stored in Google Firebase (Cloud Firestore) infrastructure located in Australia (australia-southeast1). Firebase provides enterprise-grade security including encryption at rest and in transit.
+      {heading("13. Changes to Terms & Contact")}
+      {para("We reserve the right to modify these Terms at any time. Material changes will be communicated via the Service or email. Continued use of the Service after changes constitutes acceptance of the revised Terms.")}
+      {para("For questions about these Terms, contact us:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem(`${COMPANY.name}`)}
+        {listItem(`${COMPANY.acn} / ${COMPANY.abn}`)}
+        {listItem(`${COMPANY.address}`)}
+        {listItem(`Phone: ${COMPANY.phone}`)}
+        {listItem(`Email: ${COMPANY.email}`)}
+      </ul>
+    </>
+  );
 
-4. DATA SHARING
-We do not sell, trade, or rent your personal information to third parties. Data may be shared only: (a) with your consent; (b) to comply with legal obligations; (c) to protect our rights or safety.
+  // ─── PRIVACY POLICY ────────────────────────────────────────────────────────
+  const PrivacyContent = () => (
+    <>
+      {para(`This Privacy Policy describes how ${COMPANY.name} (${COMPANY.acn} / ${COMPANY.abn}), trading as ${COMPANY.brand}, collects, uses, stores, and protects your personal information when you use our cybersecurity platform. We are committed to complying with the Australian Privacy Principles (APPs) under the Privacy Act 1988 (Cth).`)}
+      {para(`Last updated: ${lastUpdated}`)}
 
-5. THIRD-PARTY SERVICES
-HaveIBeenPwned API: When you use breach checking, your email or a partial hash of your password is sent to the HIBP API. Full passwords are never transmitted.
-SSL Labs API: When you scan a website, the domain name is sent to Qualys SSL Labs.
-Firebase/Google: Authentication and data storage are provided by Google Firebase.
+      {heading("1. Information We Collect")}
+      {subH("1.1 Information You Provide")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Account registration details: email address, display name, password (hashed)")}
+        {listItem("Security scan data: URLs submitted for scanning, email addresses checked for breaches")}
+        {listItem("Device hardening preferences and checklist progress")}
+        {listItem("Account security configurations and 2FA settings you record")}
+        {listItem("Monitoring URLs and uptime configurations")}
+        {listItem("Threat logs and incident response notes")}
+      </ul>
+      {subH("1.2 Information Collected Automatically")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Usage data: features accessed, timestamps, session duration")}
+        {listItem("Technical data: browser type, operating system, device information")}
+        {listItem("Scan results and security assessment outputs")}
+      </ul>
 
-6. DATA SECURITY
-We implement industry-standard security measures including: Firebase Authentication with encrypted passwords, Firestore security rules restricting data access to authenticated users only, HTTPS encryption for all communications, user-scoped data isolation.
+      {heading("2. How We Use Your Information")}
+      {para("We use the information collected to:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Provide, maintain, and improve the AgentsLock Service")}
+        {listItem("Authenticate your identity and secure your account")}
+        {listItem("Synchronise your security data across devices in real-time")}
+        {listItem("Generate security reports and threat assessments")}
+        {listItem("Send critical security notifications and alerts")}
+        {listItem("Detect, prevent, and address technical issues")}
+        {listItem("Comply with legal obligations")}
+      </ul>
 
-7. YOUR RIGHTS
-Under Australian Privacy Principles, you have the right to: access your personal information, request correction of inaccurate data, request deletion of your account and data, opt out of non-essential data collection.
+      {heading("3. Firebase Storage & Processing")}
+      {para("We use Google Firebase for authentication and data storage:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Firebase Authentication: manages your login credentials securely using industry-standard encryption")}
+        {listItem("Cloud Firestore: stores your security data (scans, checklists, threat logs, monitors) in encrypted cloud databases")}
+        {listItem("Data is processed through Google Cloud infrastructure with servers located in the United States and Australia")}
+      </ul>
+      {para("Firebase's data handling is governed by Google's Cloud Data Processing Addendum and complies with applicable data protection regulations. Only public Firebase configuration keys are used in the client application; all server secrets remain server-side.")}
 
-8. DATA RETENTION
-Account data is retained as long as your account is active. You may delete your data at any time through Settings. Upon account deletion, all associated data is permanently removed within 30 days.
+      {heading("4. Data Security")}
+      {para("We implement appropriate technical and organisational measures to protect your personal information, including:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Encryption in transit (TLS/SSL) and at rest")}
+        {listItem("Firebase Security Rules restricting data access to authenticated users")}
+        {listItem("Password hashing using industry-standard algorithms")}
+        {listItem("Session management and automatic timeout")}
+        {listItem("Regular security audits of our infrastructure")}
+      </ul>
+      {para("No method of transmission or storage is 100% secure. While we strive to protect your data, we cannot guarantee absolute security.")}
 
-9. CHILDREN'S PRIVACY
-The Service is not intended for users under 18 years of age. We do not knowingly collect personal information from children.
+      {heading("5. Cookies & Local Storage")}
+      {para("AgentsLock uses browser local storage to:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Cache security data locally for faster performance")}
+        {listItem("Store user preferences and UI settings")}
+        {listItem("Enable offline functionality through our Progressive Web App (PWA)")}
+      </ul>
+      {para("We do not use third-party advertising cookies. Firebase Authentication may use session cookies for authentication state management.")}
 
-10. CHANGES TO THIS POLICY
-We may update this Privacy Policy periodically. Changes will be posted on this page with an updated revision date.
+      {heading("6. Third-Party Services")}
+      {para("The Service may share limited data with third-party services to provide functionality:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Google Firebase — authentication and data storage")}
+        {listItem("Have I Been Pwned API — email/password breach checking (hashed data only)")}
+        {listItem("SSL Labs / security APIs — website security scanning")}
+      </ul>
+      {para("We do not sell, trade, or rent your personal information to third parties for marketing or advertising purposes.")}
 
-11. CONTACT
-Privacy inquiries: Leffler International Investments Pty Ltd
-Level 2, 222 Pitt Street, Sydney 2000, Australia
-Phone: 0478 965 828` },
+      {heading("7. Data Retention")}
+      {para("We retain your personal information for as long as your account is active or as needed to provide the Service. Upon account deletion:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Your Firestore data will be permanently deleted")}
+        {listItem("Local storage data can be cleared via browser settings")}
+        {listItem("Backup copies may persist for up to 30 days in our backup systems")}
+      </ul>
 
-  disclaimer: { title: "Disclaimer", content: `Last updated: February 19, 2026
+      {heading("8. Your Rights — Australian Privacy Principles")}
+      {para("Under the APPs, you have the right to:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Access: Request a copy of the personal information we hold about you (APP 12)")}
+        {listItem("Correction: Request correction of inaccurate or outdated information (APP 13)")}
+        {listItem("Complaint: Lodge a complaint if you believe we have breached the APPs")}
+        {listItem("Deletion: Request deletion of your account and associated data")}
+        {listItem("Export: Export your security data using the Report export feature")}
+      </ul>
+      {para("To exercise these rights, contact us at the details provided below. We will respond within 30 days.")}
+      {para("If you are not satisfied with our response, you may lodge a complaint with the Office of the Australian Information Commissioner (OAIC) at www.oaic.gov.au.")}
 
-GENERAL DISCLAIMER
-AgentsLock is provided by Leffler International Investments Pty Ltd (ACN 124 089 345, ABN 90 124 089 345) for informational and educational purposes only.
+      {heading("9. Children's Privacy")}
+      {para("The Service is not directed at individuals under 16 years of age. We do not knowingly collect personal information from children under 16. If we become aware that we have collected data from a child under 16, we will take steps to delete that information promptly.")}
 
-NO PROFESSIONAL ADVICE
-The security recommendations, breach checking results, password analysis, and hardening checklists provided by AgentsLock do not constitute professional cybersecurity advice, financial advice, legal advice, or tax advice. Always consult qualified professionals for specific security, financial, legal, or tax concerns.
+      {heading("10. International Data Transfers")}
+      {para("Your data may be transferred to and processed in countries outside Australia, including the United States (via Firebase/Google Cloud). We ensure that appropriate safeguards are in place, including contractual clauses and compliance with APP 8 (cross-border disclosure of personal information).")}
 
-NO WARRANTY
-AgentsLock is provided "as is" without any warranties, express or implied. We make no representations about the accuracy, completeness, or reliability of any information provided through the Service. Security threats evolve constantly, and no tool can guarantee complete protection.
+      {heading("11. Changes to This Policy & Contact")}
+      {para("We may update this Privacy Policy periodically. Material changes will be notified via the Service or email. Continued use after changes constitutes acceptance.")}
+      {para("For privacy inquiries, data access requests, or complaints:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem(`Privacy Officer — ${COMPANY.name}`)}
+        {listItem(`${COMPANY.address}`)}
+        {listItem(`Phone: ${COMPANY.phone}`)}
+        {listItem(`Email: ${COMPANY.email}`)}
+      </ul>
+    </>
+  );
 
-LIMITATION OF LIABILITY
-To the maximum extent permitted by law, Leffler International Investments Pty Ltd, its directors, employees, and agents shall not be liable for any direct, indirect, incidental, special, consequential, or punitive damages arising from: (a) your use of or inability to use the Service; (b) any security breach or data loss; (c) reliance on information provided by the Service; (d) actions taken based on the Service's recommendations.
+  // ─── DISCLAIMER ────────────────────────────────────────────────────────────
+  const DisclaimerContent = () => (
+    <>
+      {para(`This Disclaimer applies to the AgentsLock cybersecurity platform ("Service"), operated by ${COMPANY.name} (${COMPANY.acn} / ${COMPANY.abn}).`)}
+      {para(`Last updated: ${lastUpdated}`)}
 
-THIRD-PARTY CONTENT
-AgentsLock integrates with third-party services and APIs. We are not responsible for the accuracy, availability, or security of third-party services. Breach data is sourced from HaveIBeenPwned; SSL grades from Qualys SSL Labs.
+      {heading("Financial Disclaimer")}
+      {para("AgentsLock is a cybersecurity platform and does not provide financial, investment, tax, or accounting advice. Any references to financial security, transaction monitoring, or related topics within the Service are for informational purposes only.")}
+      {para("Markets involve risk and returns are not guaranteed. Past performance is not indicative of future results. You should consult a qualified financial adviser before making any investment decisions.")}
+      {para("The Company, its directors, and employees accept no liability for any financial loss or damage arising from the use of or reliance on any information provided through the Service.")}
 
-INVESTMENT & FINANCIAL DISCLAIMER
-Markets involve risk and returns are not guaranteed. Past performance is not indicative of future results. Nothing in this Service constitutes financial advice or a recommendation to buy, sell, or hold any investment.
+      {heading("Legal Disclaimer")}
+      {para("The information provided by AgentsLock is for general informational and educational purposes only and does not constitute legal advice. While we make reasonable efforts to ensure accuracy, we make no representations or warranties of any kind, express or implied, about the completeness, accuracy, reliability, or suitability of the information.")}
+      {para("Users are responsible for ensuring their use of the Service complies with all applicable laws and regulations in their jurisdiction. Any reliance you place on information from the Service is strictly at your own risk.")}
 
-INTELLECTUAL PROPERTY
-All content, code, design, and branding of AgentsLock are the exclusive property of Leffler International Investments Pty Ltd. All trademarks and data belong to their respective owners. Unauthorized reproduction, distribution, or modification is strictly prohibited.
+      {heading("Security Liability Disclaimer")}
+      {para("While AgentsLock provides cybersecurity tools and assessments, no software platform can guarantee absolute protection against all cyber threats. The Service is designed to assist users in improving their security posture but does not eliminate all security risks.")}
+      {para("Specifically, we disclaim liability for:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Any security breach, data loss, or unauthorised access that occurs despite using the Service")}
+        {listItem("The accuracy or completeness of breach detection results")}
+        {listItem("The effectiveness of recommended security measures")}
+        {listItem("Downtime or unavailability of monitoring services")}
+        {listItem("Actions taken or not taken based on security scan results")}
+        {listItem("Vulnerabilities or threats not detected by the Service")}
+      </ul>
+      {para("Users should maintain comprehensive security practices beyond the scope of this Service, including up-to-date antivirus software, regular backups, and professional security audits for critical systems.")}
 
-AUSTRALIAN LAW
-This disclaimer is governed by the laws of New South Wales, Australia. Nothing in this disclaimer excludes or limits any consumer guarantee under the Australian Consumer Law that cannot be excluded or limited.
+      {heading("No Guarantee of Protection")}
+      {para("Security scores, grades, assessments, and recommendations provided by the Service are indicative only and should not be relied upon as a guarantee of security. The cyber threat landscape evolves continuously, and new vulnerabilities and attack vectors emerge regularly.")}
 
-CONTACT
-Leffler International Investments Pty Ltd
-Level 2, 222 Pitt Street, Sydney 2000, Australia
-Phone: 0478 965 828
-Website: agentslock.com` },
-};
+      {heading("Third-Party Tools & Data")}
+      {para("The Service integrates with and references third-party tools, APIs, and databases. We do not control these services and are not responsible for their accuracy, availability, or security practices. All third-party trademarks and data belong to their respective owners.")}
 
-function LegalPage({ page, goBack }) {
-  const data = LEGAL[page];
-  if (!data) return null;
-  return (
-    <div style={{ maxWidth: 800, margin: "0 auto" }}>
-      <Btn onClick={goBack} color={C.dim} style={{ marginBottom: 16, fontSize: 11 }}>← Back to Dashboard</Btn>
-      <Card>
-        <h2 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, marginBottom: 20 }}>{data.title}</h2>
-        <div style={{ color: C.text, fontSize: 12, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{data.content}</div>
-        <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${C.border}`, color: C.dim, fontSize: 10, lineHeight: 1.8 }}>
-          <div style={{ fontWeight: 600, color: C.text }}>© 2026 AgentsLock — Leffler International Investments Pty Ltd</div>
-          <div>ACN 124 089 345 · ABN 90 124 089 345</div>
-          <div>Level 2, 222 Pitt Street, Sydney 2000, Australia · Phone: 0478 965 828</div>
+      {heading("Limitation")}
+      {para(`To the maximum extent permitted by law, ${COMPANY.name} shall not be liable for any direct, indirect, incidental, special, consequential, or exemplary damages arising from the use of or inability to use the Service.`)}
+      {para("Nothing in this Disclaimer excludes or limits any rights you may have under the Australian Consumer Law that cannot be excluded or limited by agreement.")}
+
+      {heading("Contact")}
+      {para("If you have questions about this Disclaimer, contact us at:")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem(`${COMPANY.name}`)}
+        {listItem(`${COMPANY.address}`)}
+        {listItem(`Phone: ${COMPANY.phone}`)}
+        {listItem(`Email: ${COMPANY.email}`)}
+      </ul>
+    </>
+  );
+
+  // ─── ABOUT ─────────────────────────────────────────────────────────────────
+  const AboutContent = () => (
+    <>
+      <div style={{ textAlign:"center", marginBottom:24 }}>
+        <div style={{ width:64, height:64, borderRadius:16, background:`linear-gradient(135deg,${C.green},${C.blue})`, display:"inline-flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}><I.Shield s={32} style={{ color:"#fff" }}/></div>
+        <h2 style={{ fontFamily:"'Chakra Petch', sans-serif", fontSize:24, fontWeight:700, color:C.bright, margin:"0 0 4px" }}>AgentsLock</h2>
+        <div style={{ color:C.green, fontSize:13, fontWeight:600, letterSpacing:"0.06em" }}>v4.0 — Firebase-Secured Cybersecurity Platform</div>
+      </div>
+
+      {heading("Our Mission")}
+      {para("AgentsLock is a comprehensive personal cybersecurity platform designed to empower individuals and organisations to take control of their digital security. We provide enterprise-grade security tools in an accessible, user-friendly interface.")}
+
+      {heading("Platform Features")}
+      <ul style={{ paddingLeft:20, marginBottom:12 }}>
+        {listItem("Breach Detection — Check if your credentials have been exposed in known data breaches")}
+        {listItem("Password Security — Analyse password strength with entropy calculations and generate secure passwords")}
+        {listItem("Web Scanner — SSL/TLS grading and security header analysis for websites")}
+        {listItem("Device Hardening — 56-point security checklist with platform-specific commands")}
+        {listItem("Account Auditing — Track 2FA status, app passwords, and risk levels across all accounts")}
+        {listItem("Threat Monitoring — Real-time active threat management with severity filtering")}
+        {listItem("Uptime Monitoring — Website availability monitoring with response time graphs")}
+        {listItem("Incident Response — Emergency response protocols and procedures")}
+        {listItem("Security Reports — Exportable comprehensive security audit reports")}
+      </ul>
+
+      {heading("Technology")}
+      {para("Built with React + Vite, secured by Firebase Authentication and Cloud Firestore. Real-time cloud synchronisation across all your devices. Progressive Web App (PWA) enabled for offline access.")}
+
+      {heading("Company Information")}
+      <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:16, marginBottom:12 }}>
+        <div style={{ display:"grid", gap:8 }}>
+          {[
+            ["Company", COMPANY.name],
+            ["Trading As", COMPANY.brand],
+            ["ACN", "124 089 345"],
+            ["ABN", "90 124 089 345"],
+            ["Address", COMPANY.address],
+            ["Phone", COMPANY.phone],
+            ["Email", COMPANY.email],
+            ["Website", COMPANY.website],
+          ].map(([label, val]) => (
+            <div key={label} style={{ display:"flex", gap:8, fontSize:12 }}>
+              <span style={{ color:C.dim, minWidth:80 }}>{label}:</span>
+              <span style={{ color:C.bright, fontWeight:500 }}>{val}</span>
+            </div>
+          ))}
         </div>
-      </Card>
+      </div>
+
+      {heading("Copyright & Intellectual Property")}
+      {para(`\u00A9 2026 ${COMPANY.brand} \u2014 ${COMPANY.name}. All rights reserved.`)}
+      {para("All trademarks, logos, and data belong to their respective owners. No reproduction without permission. The AgentsLock name, logo, and all associated branding are the exclusive intellectual property of the Company.")}
+      {para("This software and its source code are protected by copyright law and international treaties. Unauthorised reproduction or distribution of this program, or any portion of it, may result in severe civil and criminal penalties.")}
+    </>
+  );
+
+  const titles = { terms:"Terms of Service", privacy:"Privacy Policy", disclaimer:"Disclaimer", about:"About AgentsLock" };
+  const icons = { terms:<I.FileText s={20}/>, privacy:<I.Lock s={20}/>, disclaimer:<I.Alert s={20}/>, about:<I.Shield s={20}/> };
+  const Content = { terms:TermsContent, privacy:PrivacyContent, disclaimer:DisclaimerContent, about:AboutContent }[page];
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:1000, background:"rgba(6,8,13,0.92)", backdropFilter:"blur(8px)", display:"flex", alignItems:"flex-start", justifyContent:"center", overflowY:"auto", padding:"40px 16px" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:16, maxWidth:720, width:"100%", padding:"32px 36px", position:"relative", boxShadow:`0 24px 48px rgba(0,0,0,0.5)` }}>
+        {/* Close button */}
+        <button onClick={onClose} style={{ position:"absolute", top:16, right:16, background:`${C.dim}15`, border:`1px solid ${C.border}`, borderRadius:8, width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:C.dim, transition:"all 0.2s" }}
+          onMouseOver={(e)=>{e.currentTarget.style.color=C.bright;e.currentTarget.style.borderColor=C.green}}
+          onMouseOut={(e)=>{e.currentTarget.style.color=C.dim;e.currentTarget.style.borderColor=C.border}}>
+          <I.X s={14}/>
+        </button>
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+          <div style={{ width:40, height:40, borderRadius:10, background:`${C.green}15`, border:`1px solid ${C.greenBdr}`, display:"flex", alignItems:"center", justifyContent:"center", color:C.green }}>{icons[page]}</div>
+          <div>
+            <h1 style={{ fontFamily:"'Chakra Petch', sans-serif", fontSize:20, fontWeight:700, color:C.bright, margin:0 }}>{titles[page]}</h1>
+            <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{COMPANY.name} ({COMPANY.acn})</div>
+          </div>
+        </div>
+        {/* Content */}
+        <div style={{ maxHeight:"70vh", overflowY:"auto", paddingRight:8 }}>
+          {Content && <Content />}
+        </div>
+        {/* Footer nav */}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:20, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
+          {Object.entries(titles).filter(([k])=>k!==page).map(([k, label])=>(
+            <button key={k} onClick={()=>onClose(k)} style={{ background:`${C.green}10`, border:`1px solid ${C.greenBdr}`, color:C.green, padding:"6px 14px", borderRadius:6, cursor:"pointer", fontSize:11, fontFamily:"inherit", fontWeight:500, transition:"all 0.2s" }}>{label}</button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1213,6 +1451,7 @@ export default function App() {
   const [scanLog, setScanLog] = useState([]);
   const [now, setNow] = useState(new Date());
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [legalPage, setLegalPage] = useState(null);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
@@ -1332,43 +1571,38 @@ export default function App() {
         {tab==="monitor" && <MonitorTab monitors={monitors} setMonitors={setMonitorsAndSave} />}
         {tab==="reports" && <ReportTab checks={checks} threats={threats} accounts={accounts} monitors={monitors} scanLog={scanLog} />}
         {tab==="incident" && <IncidentTab />}
-        {tab==="settings" && <SettingsTab user={user} logout={logout} />}
-        {tab?.startsWith("legal-") && <LegalPage page={tab.replace("legal-","")} goBack={()=>setTab("overview")} />}
+        {tab==="settings" && <SettingsTab user={user} logout={logout} setLegalPage={setLegalPage} />}
       </main>
 
-      <footer style={{ borderTop:`1px solid ${C.border}`, padding:"30px 24px 20px", color:C.dim, fontSize:10 }}>
-        <div style={{ maxWidth:1200, margin:"0 auto" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:20, marginBottom:16 }}>
-            <div>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                <div style={{ width:22, height:22, borderRadius:5, background:`linear-gradient(135deg,${C.green},${C.blue})`, display:"flex", alignItems:"center", justifyContent:"center" }}><I.Shield s={12} style={{ color:"#fff" }}/></div>
-                <span style={{ fontFamily:"'Chakra Petch'", fontWeight:700, fontSize:13, color:C.bright, letterSpacing:"0.06em" }}>AGENTSLOCK</span>
-              </div>
-              <div style={{ color:C.dim, lineHeight:1.6 }}>Personal Cybersecurity Platform<br/>Protecting devices, accounts & data</div>
-            </div>
-            <div style={{ display:"flex", gap:24 }}>
-              <div>
-                <div style={{ color:C.text, fontWeight:600, marginBottom:6, fontSize:11 }}>Legal</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                  {["Terms","Privacy","Disclaimer"].map(p=><button key={p} onClick={()=>setTab("legal-"+p.toLowerCase())} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:10, fontFamily:"inherit", padding:0, textAlign:"left" }}>{p}</button>)}
-                </div>
-              </div>
-              <div>
-                <div style={{ color:C.text, fontWeight:600, marginBottom:6, fontSize:11 }}>Links</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                  {[["Website","https://agentslock.com"],["GitHub","https://github.com/danyaffa/agentslock"]].map(([n,u])=><a key={n} href={u} target="_blank" rel="noopener" style={{ color:C.blue, textDecoration:"none", fontSize:10 }}>{n}</a>)}
-                </div>
-              </div>
-            </div>
+      <footer style={{ borderTop:`1px solid ${C.border}`, padding:"24px 24px 20px", color:C.dim, fontSize:11, lineHeight:1.8 }}>
+        {/* Legal links row */}
+        <div style={{ display:"flex", justifyContent:"center", gap:20, marginBottom:12, flexWrap:"wrap" }}>
+          {[["terms","Terms of Service"],["privacy","Privacy Policy"],["disclaimer","Disclaimer"],["about","About"]].map(([k,label])=>(
+            <button key={k} onClick={()=>setLegalPage(k)} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", fontWeight:500, padding:0, textDecoration:"none", transition:"opacity 0.2s" }}
+              onMouseOver={e=>e.currentTarget.style.opacity=0.7} onMouseOut={e=>e.currentTarget.style.opacity=1}>{label}</button>
+          ))}
+        </div>
+        {/* Company details */}
+        <div style={{ textAlign:"center", maxWidth:680, margin:"0 auto" }}>
+          <div style={{ marginBottom:4 }}>
+            <span style={{ color:C.bright, fontWeight:600 }}>{"\u00A9"} 2026 AgentsLock</span>
+            {" \u2014 "}Leffler International Investments Pty Ltd
+            {" \u00B7 "}ACN 124 089 345 {"\u00B7"} ABN 90 124 089 345
           </div>
-          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, lineHeight:1.8 }}>
-            <div style={{ color:C.text, fontWeight:600, marginBottom:2 }}>© 2026 AgentsLock — Leffler International Investments Pty Ltd</div>
-            <div>ACN 124 089 345 · ABN 90 124 089 345 · Level 2, 222 Pitt Street, Sydney 2000, Australia · Phone: 0478 965 828</div>
-            <div style={{ marginTop:4 }}>All trademarks and data belong to their respective owners. No reproduction without permission.</div>
-            <div>Informational only. No financial, legal, or tax advice. Markets involve risk and returns are not guaranteed. Past performance is not indicative of future results.</div>
+          <div style={{ marginBottom:4 }}>
+            Level 2, 222 Pitt Street, Sydney 2000, Australia {"\u00B7"} Phone: 0478 965 828
+          </div>
+          <div style={{ color:C.dim, fontSize:10, marginTop:6, lineHeight:1.6 }}>
+            All trademarks and data belong to their respective owners. No reproduction without permission.
+            Informational only. No financial, legal, or tax advice. Markets involve risk and returns are not guaranteed.
+            Past performance is not indicative of future results. See{" "}
+            <button onClick={()=>setLegalPage("terms")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:10, fontFamily:"inherit", padding:0, textDecoration:"underline" }}>Terms</button>.
           </div>
         </div>
       </footer>
+
+      {/* Legal overlay */}
+      <LegalOverlay page={legalPage} onClose={(nextPage) => setLegalPage(nextPage || null)} />
     </div>
   );
 }
