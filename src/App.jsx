@@ -1803,13 +1803,16 @@ export default function App() {
 
   if (!user) return <AuthScreen onLogin={login} onSignup={signup} />;
 
-  // Show subscription screen if user hasn't subscribed
-  if (subLoaded && (!subscription || subscription.status !== "active")) {
+  // Admin bypass — developer always gets full access (no PayPal required)
+  const isAdmin = import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
+
+  // Show subscription screen if user hasn't subscribed (admin bypasses this)
+  if (!isAdmin && subLoaded && (!subscription || subscription.status !== "active")) {
     return <SubscriptionScreen user={user} onSubscribed={(sub) => setSubscription(sub)} onLogout={logout} />;
   }
 
-  // Wait for subscription check before showing dashboard
-  if (!subLoaded) return <LoadingScreen message="Checking subscription..." />;
+  // Wait for subscription check before showing dashboard (admin skips wait)
+  if (!isAdmin && !subLoaded) return <LoadingScreen message="Checking subscription..." />;
 
   const activeThreats = threats.filter(t => t.status === "active").length;
   const userName = user.displayName || user.email?.split("@")[0] || "User";
