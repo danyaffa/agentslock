@@ -115,8 +115,8 @@ function useAuth() {
     try { await logIn(email, pass); return { ok: true }; }
     catch (e) { return { ok: false, err: e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() }; }
   };
-  const doSignup = async (email, name, pass) => {
-    try { await signUp(email, pass, name); return { ok: true }; }
+  const doSignup = async (email, name, pass, promoCode) => {
+    try { await signUp(email, pass, name, promoCode); return { ok: true }; }
     catch (e) { return { ok: false, err: e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() }; }
   };
   const doLogout = async () => { await logOut(); };
@@ -221,6 +221,7 @@ function AuthScreen({ onLogin, onSignup }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [pass, setPass] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -229,7 +230,7 @@ function AuthScreen({ onLogin, onSignup }) {
     if (!email || !pass) { setErr("Fill all fields"); setBusy(false); return; }
     if (mode === "signup" && !name) { setErr("Enter your name"); setBusy(false); return; }
     if (pass.length < 6) { setErr("Password must be 6+ characters"); setBusy(false); return; }
-    const r = mode === "login" ? await onLogin(email, pass) : await onSignup(email, name, pass);
+    const r = mode === "login" ? await onLogin(email, pass) : await onSignup(email, name, pass, promoCode.trim());
     if (!r.ok) setErr(r.err);
     setBusy(false);
   };
@@ -243,6 +244,9 @@ function AuthScreen({ onLogin, onSignup }) {
           </div>
           <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 28, color: C.bright, margin: "0 0 4px", letterSpacing: "0.06em" }}>AGENTSLOCK</h1>
           <p style={{ color: C.dim, fontSize: 12 }}>Personal Cybersecurity Platform</p>
+          <p style={{ color: C.text, fontSize: 11, marginTop: 12, lineHeight: 1.6, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
+            Your all-in-one security dashboard — detect data breaches, analyze passwords, scan websites for vulnerabilities, harden your devices, and respond to incidents with guided playbooks.
+          </p>
         </div>
 
         <Card>
@@ -269,6 +273,14 @@ function AuthScreen({ onLogin, onSignup }) {
             <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Password</label>
             <Input value={pass} onChange={setPass} placeholder="••••••••" type="password" icon={<I.Lock />} />
           </div>
+
+          {mode === "signup" && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Promo Code <span style={{ color: C.dim, fontStyle: "italic" }}>(optional)</span></label>
+              <Input value={promoCode} onChange={setPromoCode} placeholder="Enter promo code" icon={<I.Zap />} />
+              <p style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Have an invite code? Enter it to get free access.</p>
+            </div>
+          )}
 
           {err && <div style={{ padding: "8px 12px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
 
@@ -1650,20 +1662,23 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.bg, borderRadius: 8 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ color: C.bright, fontWeight: 600 }}>Pro Plan</span>
+                <span style={{ color: C.bright, fontWeight: 600 }}>{subscription?.provider === "promo_code" ? "Promo Access" : "Pro Plan"}</span>
                 <Badge color={C.green}>ACTIVE</Badge>
               </div>
-              <div style={{ color: C.dim, fontSize: 12 }}>$18.00 USD / month via PayPal</div>
+              <div style={{ color: C.dim, fontSize: 12 }}>{subscription?.provider === "promo_code" ? "Free access via promo code" : "$18.00 USD / month via PayPal"}</div>
               {subscription?.subscribedAt && (
                 <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>
-                  Subscribed: {new Date(subscription.subscribedAt).toLocaleDateString()}
+                  {subscription?.provider === "promo_code" ? "Activated" : "Subscribed"}: {new Date(subscription.subscribedAt).toLocaleDateString()}
                   {subscription.subscriptionId && <> &middot; ID: {subscription.subscriptionId.slice(0, 12)}...</>}
+                  {subscription.promoCode && <> &middot; Code: {subscription.promoCode}</>}
                 </div>
               )}
             </div>
-            <a href="https://www.paypal.com/myaccount/autopay" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-              <Btn color={C.blue}><I.ExternalLink /> Manage</Btn>
-            </a>
+            {subscription?.provider !== "promo_code" && (
+              <a href="https://www.paypal.com/myaccount/autopay" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <Btn color={C.blue}><I.ExternalLink /> Manage</Btn>
+              </a>
+            )}
           </div>
         </Sect>
       </Card>

@@ -36,12 +36,16 @@ try {
 export { auth, db, firebaseError };
 
 // ─── Auth helpers ────────────────────────────────────────────────────────────
-export async function signUp(email, password, displayName) {
+export async function signUp(email, password, displayName, promoCode) {
   if (!auth) throw new Error("Firebase not configured");
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
-  // Initialize user document in Firestore
-  await setDoc(doc(db, "users", cred.user.uid), {
+
+  // Check if promo code grants free access
+  const validPromo = import.meta.env.VITE_PROMO_CODE;
+  const promoValid = promoCode && validPromo && promoCode.trim().toLowerCase() === validPromo.trim().toLowerCase();
+
+  const userData = {
     email,
     displayName,
     createdAt: Date.now(),
@@ -52,7 +56,24 @@ export async function signUp(email, password, displayName) {
     scanLog: [],
     irChecks: {},
     settings: { notifs: true, autoScan: false },
-  });
+  };
+
+  // If valid promo code, auto-activate subscription (free access)
+  if (promoValid) {
+    userData.promoCode = promoCode.trim();
+    userData.subscription = {
+      status: "active",
+      plan: "promo",
+      amount: 0,
+      currency: "USD",
+      subscribedAt: new Date().toISOString(),
+      provider: "promo_code",
+      promoCode: promoCode.trim(),
+    };
+  }
+
+  // Initialize user document in Firestore
+  await setDoc(doc(db, "users", cred.user.uid), userData);
   return cred.user;
 }
 
