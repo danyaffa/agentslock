@@ -485,41 +485,53 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
   const runDeviceScan = async () => {
     setScanning(true); setFindings(null); setCleaned({}); setEliminating(false); setElimProgress(null);
     const results = [];
+    const pageOrigin = location.origin || location.href;
+    const pageHost = location.hostname || "localhost";
+
+    // ── Resolve real public IP for origin attribution ──
+    let publicIP = null;
+    try { const r = await fetch("https://api.ipify.org?format=json"); const d = await r.json(); publicIP = d.ip; } catch {}
+
     const steps = [
       { phase: "Checking browser security...", pct: 10, run: () => {
         const isHttps = location.protocol === "https:";
-        if (!isHttps) results.push({ id: "no-https", sev: "critical", cat: "Browser", name: "Insecure Connection", desc: "Page not served over HTTPS — data can be intercepted", fix: "deploy-https", fixLabel: "Eliminate", elimDesc: "Force-redirect all requests to HTTPS and block insecure resources" });
+        if (!isHttps) results.push({ id: "no-https", sev: "critical", cat: "Browser", name: "Insecure Connection", desc: "Page not served over HTTPS — data can be intercepted", fix: "deploy-https", fixLabel: "Eliminate", elimDesc: "Force-redirect all requests to HTTPS and block insecure resources", origin: pageOrigin, originType: "address" });
         const ua = navigator.userAgent;
         const isOldBrowser = /MSIE|Trident/.test(ua);
-        if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: "block-old-browser", fixLabel: "Eliminate", elimDesc: "Block unsafe legacy APIs and apply security shims" });
+        if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: "block-old-browser", fixLabel: "Eliminate", elimDesc: "Block unsafe legacy APIs and apply security shims", origin: navigator.userAgent.match(/(MSIE\s[\d.]+|Trident\/[\d.]+)/)?.[0] || "Internet Explorer", originType: "browser" });
         const dnt = navigator.doNotTrack;
-        if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: "enable-dnt-header", fixLabel: "Eliminate", elimDesc: "Inject DNT headers into app requests to signal tracking opt-out" });
+        if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: "enable-dnt-header", fixLabel: "Eliminate", elimDesc: "Inject DNT headers into app requests to signal tracking opt-out", origin: `${navigator.vendor || "Browser"} — ${pageHost}`, originType: "browser" });
       }},
       { phase: "Scanning cookies & tracking...", pct: 25, run: () => {
         const cookies = document.cookie.split(";").filter(c => c.trim());
-        if (cookies.length > 5) results.push({ id: "excess-cookies", sev: "medium", cat: "Privacy", name: `${cookies.length} cookies detected`, desc: "Tracking cookies may be profiling your browsing activity", fix: "clear-cookies", fixLabel: "Eliminate", elimDesc: "Remove all non-essential cookies — your logins stay intact" });
-        else if (cookies.length > 0) results.push({ id: "some-cookies", sev: "low", cat: "Privacy", name: `${cookies.length} cookies found`, desc: "Cookies present — review for unnecessary trackers", fix: "clear-cookies", fixLabel: "Eliminate", elimDesc: "Remove all non-essential cookies safely" });
+        const cookieNames = cookies.map(c => c.split("=")[0].trim()).filter(Boolean);
+        const cookieOriginStr = cookieNames.length > 0 ? `${pageHost} (${cookieNames.slice(0, 3).join(", ")}${cookieNames.length > 3 ? ` +${cookieNames.length - 3} more` : ""})` : pageHost;
+        if (cookies.length > 5) results.push({ id: "excess-cookies", sev: "medium", cat: "Privacy", name: `${cookies.length} cookies detected`, desc: "Tracking cookies may be profiling your browsing activity", fix: "clear-cookies", fixLabel: "Eliminate", elimDesc: "Remove all non-essential cookies — your logins stay intact", origin: cookieOriginStr, originType: "domain" });
+        else if (cookies.length > 0) results.push({ id: "some-cookies", sev: "low", cat: "Privacy", name: `${cookies.length} cookies found`, desc: "Cookies present — review for unnecessary trackers", fix: "clear-cookies", fixLabel: "Eliminate", elimDesc: "Remove all non-essential cookies safely", origin: cookieOriginStr, originType: "domain" });
       }},
       { phase: "Checking local storage...", pct: 40, run: () => {
-        let lsCount = 0; let lsSize = 0;
-        try { lsCount = localStorage.length; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); lsSize += (localStorage.getItem(k) || "").length; } } catch {}
+        let lsCount = 0; let lsSize = 0; const lsKeys = [];
+        try { lsCount = localStorage.length; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); lsKeys.push(k); lsSize += (localStorage.getItem(k) || "").length; } } catch {}
         const lsKB = Math.round(lsSize / 1024);
-        if (lsKB > 500) results.push({ id: "large-ls", sev: "medium", cat: "Storage", name: `${lsKB}KB in localStorage`, desc: `${lsCount} items storing ${lsKB}KB — may contain sensitive cached data`, fix: "clear-ls-other", fixLabel: "Eliminate", elimDesc: "Remove third-party cached data — AgentsLock settings preserved" });
+        const foreignKeys = lsKeys.filter(k => !k?.startsWith("al_"));
+        const lsOriginStr = `${pageHost}/localStorage (${foreignKeys.slice(0, 3).join(", ")}${foreignKeys.length > 3 ? ` +${foreignKeys.length - 3}` : ""})`;
+        if (lsKB > 500) results.push({ id: "large-ls", sev: "medium", cat: "Storage", name: `${lsKB}KB in localStorage`, desc: `${lsCount} items storing ${lsKB}KB — may contain sensitive cached data`, fix: "clear-ls-other", fixLabel: "Eliminate", elimDesc: "Remove third-party cached data — AgentsLock settings preserved", origin: lsOriginStr, originType: "storage" });
         let ssCount = 0;
         try { ssCount = sessionStorage.length; } catch {}
-        if (ssCount > 10) results.push({ id: "session-data", sev: "low", cat: "Storage", name: `${ssCount} sessionStorage items`, desc: "Temporary session data could expose activity if device is shared", fix: "clear-ss", fixLabel: "Eliminate", elimDesc: "Wipe all session data to prevent exposure on shared devices" });
+        if (ssCount > 10) results.push({ id: "session-data", sev: "low", cat: "Storage", name: `${ssCount} sessionStorage items`, desc: "Temporary session data could expose activity if device is shared", fix: "clear-ss", fixLabel: "Eliminate", elimDesc: "Wipe all session data to prevent exposure on shared devices", origin: `${pageHost}/sessionStorage (${ssCount} keys)`, originType: "storage" });
       }},
       { phase: "Testing WebRTC leak...", pct: 55, run: async () => {
         try {
           const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
           pc.createDataChannel("");
           const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-          const leaked = await new Promise(resolve => {
+          let leakedIP = null;
+          await new Promise(resolve => {
             const to = setTimeout(() => resolve(false), 3000);
-            pc.onicecandidate = e => { if (e.candidate?.candidate) { const m = e.candidate.candidate.match(/(\d{1,3}\.){3}\d{1,3}/); if (m && !m[0].startsWith("0.") && m[0] !== "0.0.0.0") { clearTimeout(to); resolve(true); } } };
+            pc.onicecandidate = e => { if (e.candidate?.candidate) { const m = e.candidate.candidate.match(/(\d{1,3}\.){3}\d{1,3}/); if (m && !m[0].startsWith("0.") && m[0] !== "0.0.0.0") { leakedIP = m[0]; clearTimeout(to); resolve(true); } } };
           });
           pc.close();
-          if (leaked) results.push({ id: "webrtc-leak", sev: "high", cat: "Privacy", name: "WebRTC IP leak detected", desc: "Your real IP address is exposed through WebRTC — even with a VPN", fix: "block-webrtc", fixLabel: "Eliminate", elimDesc: "Disable WebRTC peer connections to stop IP leak — does not affect normal browsing" });
+          if (leakedIP) results.push({ id: "webrtc-leak", sev: "high", cat: "Privacy", name: "WebRTC IP leak detected", desc: "Your real IP address is exposed through WebRTC — even with a VPN", fix: "block-webrtc", fixLabel: "Eliminate", elimDesc: "Disable WebRTC peer connections to stop IP leak — does not affect normal browsing", origin: `${leakedIP} via stun.l.google.com:19302`, originType: "ip" });
         } catch {}
       }},
       { phase: "Checking permissions...", pct: 70, run: async () => {
@@ -527,7 +539,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         for (const p of permsToCheck) {
           try {
             const status = await navigator.permissions.query({ name: p });
-            if (status.state === "granted") results.push({ id: `perm-${p}`, sev: p === "geolocation" ? "high" : "medium", cat: "Permissions", name: `${p.charAt(0).toUpperCase() + p.slice(1)} access granted`, desc: `Website has ${p} permission — revoke if not needed`, fix: `revoke-perm-${p}`, fixLabel: "Eliminate", elimDesc: `Block ${p} API access for this page and clear granted permission` });
+            if (status.state === "granted") results.push({ id: `perm-${p}`, sev: p === "geolocation" ? "high" : "medium", cat: "Permissions", name: `${p.charAt(0).toUpperCase() + p.slice(1)} access granted`, desc: `Website has ${p} permission — revoke if not needed`, fix: `revoke-perm-${p}`, fixLabel: "Eliminate", elimDesc: `Block ${p} API access for this page and clear granted permission`, origin: `${pageHost} → navigator.${p === "notifications" ? "Notification" : p === "camera" || p === "microphone" ? "mediaDevices" : p}`, originType: "api" });
           } catch {}
         }
       }},
@@ -535,21 +547,22 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         const cores = navigator.hardwareConcurrency;
         const mem = navigator.deviceMemory;
         const platform = navigator.platform;
-        let fpPoints = 0;
-        if (cores) fpPoints++;
-        if (mem) fpPoints++;
-        if (platform) fpPoints++;
-        if (navigator.languages?.length > 1) fpPoints++;
-        if (screen.colorDepth) fpPoints++;
-        if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking" });
+        let fpPoints = 0; const fpAPIs = [];
+        if (cores) { fpPoints++; fpAPIs.push("hardwareConcurrency"); }
+        if (mem) { fpPoints++; fpAPIs.push("deviceMemory"); }
+        if (platform) { fpPoints++; fpAPIs.push("platform"); }
+        if (navigator.languages?.length > 1) { fpPoints++; fpAPIs.push("languages"); }
+        if (screen.colorDepth) { fpPoints++; fpAPIs.push("screen.colorDepth"); }
+        if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking", origin: `navigator.{${fpAPIs.join(", ")}}`, originType: "api" });
         const conn = navigator.connection;
-        if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: "optimize-net", fixLabel: "Eliminate", elimDesc: "Enable request compression and reduce payload sizes for faster operations" });
+        if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: "optimize-net", fixLabel: "Eliminate", elimDesc: "Enable request compression and reduce payload sizes for faster operations", origin: `${conn.effectiveType} via navigator.connection`, originType: "api" });
       }},
       { phase: "Checking storage quota...", pct: 95, run: async () => {
         try {
           const est = await navigator.storage.estimate();
           const usedMB = Math.round((est.usage || 0) / 1024 / 1024);
-          if (usedMB > 50) results.push({ id: "storage-quota", sev: "low", cat: "Storage", name: `${usedMB}MB browser storage used`, desc: "Cached data accumulation — consider clearing site data periodically", fix: "clear-cache", fixLabel: "Eliminate", elimDesc: "Purge cached files and service worker data — your saved settings are safe" });
+          const quotaMB = Math.round((est.quota || 0) / 1024 / 1024);
+          if (usedMB > 50) results.push({ id: "storage-quota", sev: "low", cat: "Storage", name: `${usedMB}MB browser storage used`, desc: "Cached data accumulation — consider clearing site data periodically", fix: "clear-cache", fixLabel: "Eliminate", elimDesc: "Purge cached files and service worker data — your saved settings are safe", origin: `${pageHost} — ${usedMB}MB / ${quotaMB}MB quota`, originType: "storage" });
         } catch {}
       }},
     ];
@@ -561,11 +574,14 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
       await step.run();
     }
 
+    // ── Enrich all findings with public IP when available ──
+    if (publicIP) { results.forEach(r => { if (r.originType === "ip" || r.originType === "address") { if (!r.origin.includes(publicIP)) r.publicIP = publicIP; } else { r.publicIP = publicIP; } }); }
+
     setScanProgress(100);
     setScanPhase("Scan complete");
     await new Promise(r => setTimeout(r, 300));
 
-    if (results.length === 0) results.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks", fix: null, fixLabel: null, elimDesc: null });
+    if (results.length === 0) results.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks", fix: null, fixLabel: null, elimDesc: null, origin: null });
 
     setFindings(results);
     setScanning(false);
@@ -726,33 +742,49 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
 
               {/* Findings list */}
               {findings.filter(f => f.sev !== "safe").map(f => (
-                <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: cleaned[f.id] === "done" ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${cleaned[f.id] === "done" ? C.greenBdr : C.border}`, transition: "all 0.3s" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cleaned[f.id] === "done" ? C.green : sevIcon(f.sev), flexShrink: 0, transition: "background 0.3s" }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: cleaned[f.id] === "done" ? C.green : C.bright }}>{f.name}</span>
-                        <Badge color={sevIcon(f.sev)}>{f.cat}</Badge>
-                      </div>
-                      <div style={{ fontSize: 10, color: cleaned[f.id] === "done" ? C.green : C.dim, marginTop: 2 }}>
-                        {cleaned[f.id] === "done" ? "Threat eliminated — your device is safe" : cleaned[f.id] === "cleaning" ? f.elimDesc : f.desc}
+                <div key={f.id} style={{ padding: "10px 14px", background: cleaned[f.id] === "done" ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${cleaned[f.id] === "done" ? C.greenBdr : C.border}`, transition: "all 0.3s" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: cleaned[f.id] === "done" ? C.green : sevIcon(f.sev), flexShrink: 0, transition: "background 0.3s" }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: cleaned[f.id] === "done" ? C.green : C.bright }}>{f.name}</span>
+                          <Badge color={sevIcon(f.sev)}>{f.cat}</Badge>
+                        </div>
+                        <div style={{ fontSize: 10, color: cleaned[f.id] === "done" ? C.green : C.dim, marginTop: 2 }}>
+                          {cleaned[f.id] === "done" ? "Threat eliminated — your device is safe" : cleaned[f.id] === "cleaning" ? f.elimDesc : f.desc}
+                        </div>
                       </div>
                     </div>
+                    <div style={{ flexShrink: 0, marginLeft: 10 }}>
+                      {cleaned[f.id] === "done" ? (
+                        <Badge color={C.green}>Eliminated</Badge>
+                      ) : cleaned[f.id] === "cleaning" ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 12, height: 12, border: `2px solid ${C.border}`, borderTopColor: C.red, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                          <span style={{ fontSize: 10, color: C.red, fontWeight: 600 }}>Eliminating...</span>
+                        </div>
+                      ) : f.fix ? (
+                        <Btn onClick={() => eliminateFinding(f)} color={C.red} style={{ fontSize: 10, padding: "4px 12px" }} disabled={eliminating}><I.Crosshair /> Eliminate</Btn>
+                      ) : (
+                        <span style={{ fontSize: 10, color: C.dim, fontStyle: "italic" }}>{f.fixLabel || "Manual action"}</span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ flexShrink: 0, marginLeft: 10 }}>
-                    {cleaned[f.id] === "done" ? (
-                      <Badge color={C.green}>Eliminated</Badge>
-                    ) : cleaned[f.id] === "cleaning" ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <div style={{ width: 12, height: 12, border: `2px solid ${C.border}`, borderTopColor: C.red, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                        <span style={{ fontSize: 10, color: C.red, fontWeight: 600 }}>Eliminating...</span>
-                      </div>
-                    ) : f.fix ? (
-                      <Btn onClick={() => eliminateFinding(f)} color={C.red} style={{ fontSize: 10, padding: "4px 12px" }} disabled={eliminating}><I.Crosshair /> Eliminate</Btn>
-                    ) : (
-                      <span style={{ fontSize: 10, color: C.dim, fontStyle: "italic" }}>{f.fixLabel || "Manual action"}</span>
-                    )}
-                  </div>
+                  {/* Origin / Source address */}
+                  {f.origin && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, marginLeft: 18, padding: "4px 10px", background: `${C.border}20`, borderRadius: 5, width: "fit-content" }}>
+                      <I.Map />
+                      <span style={{ fontSize: 10, color: C.dim, letterSpacing: "0.02em" }}>
+                        <span style={{ color: C.text, fontWeight: 600 }}>Source:</span> {f.origin}
+                      </span>
+                      {f.publicIP && f.originType !== "ip" && (
+                        <span style={{ fontSize: 10, color: C.dim, borderLeft: `1px solid ${C.border}`, paddingLeft: 6, marginLeft: 2 }}>
+                          <span style={{ color: C.text, fontWeight: 600 }}>IP:</span> {f.publicIP}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
 
