@@ -79,6 +79,7 @@ const I = {
   Settings: icon(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>),
   Map: icon(<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></>),
   Cpu: icon(<><rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" /></>),
+  Apple: icon(<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11" />),
 };
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
@@ -466,7 +467,7 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 1: OVERVIEW DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName }) {
+function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab }) {
   const totalChecks = Object.values(DEVICE_CHECKS).flat().length;
   const doneChecks = Object.keys(checks).filter(k => checks[k]).length;
   const score = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
@@ -496,6 +497,27 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName })
         <Stat label="Accounts" value={accounts.length} color={C.bright} sub={highRisk > 0 ? `${highRisk} high risk` : "All secured"} />
         <Stat label="Scans" value={scanLog.length} color={C.blue} sub="Total performed" />
       </div>
+
+      <Card>
+        <Sect title="Quick Actions" icon={<I.Zap />}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+            {[
+              { label: "Breach Check", desc: "Check email leaks", icon: <I.Mail />, color: C.blue, tab: "breach" },
+              { label: "Web Scanner", desc: "Scan site security", icon: <I.Globe />, color: C.cyan, tab: "scanner" },
+              { label: "Device Hardening", desc: "Secure your devices", icon: <I.Shield />, color: C.green, tab: "devices" },
+              { label: "Password Audit", desc: "Check password strength", icon: <I.Key />, color: C.purple, tab: "passwords" },
+            ].map(a => (
+              <button key={a.tab} onClick={() => setTab(a.tab)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "16px 10px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit" }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = a.color; e.currentTarget.style.background = `${a.color}08`; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bg; }}>
+                <div style={{ color: a.color }}>{a.icon}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.bright }}>{a.label}</div>
+                <div style={{ fontSize: 10, color: C.dim }}>{a.desc}</div>
+              </button>
+            ))}
+          </div>
+        </Sect>
+      </Card>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Card>
@@ -767,6 +789,20 @@ const DEVICE_CHECKS = {
     { id:"a11", text:"Remove unused apps", sev:"medium", guide:"Settings → Apps → Sort by last used" },
     { id:"a12", text:"Enable SIM lock PIN", sev:"medium", guide:"Settings → Security → SIM card lock" },
   ],
+  ios: [
+    { id:"i1", text:"Enable Face ID / Touch ID + strong passcode", sev:"critical", guide:"Settings → Face ID & Passcode → 6-digit or alphanumeric" },
+    { id:"i2", text:"Enable Find My iPhone / iPad / Mac", sev:"critical", guide:"Settings → [Your Name] → Find My → Find My iPhone → On" },
+    { id:"i3", text:"Enable automatic iOS / macOS updates", sev:"critical", guide:"Settings → General → Software Update → Automatic Updates → On" },
+    { id:"i4", text:"Enable two-factor authentication for Apple ID", sev:"critical", guide:"Settings → [Your Name] → Password & Security → Two-Factor Authentication" },
+    { id:"i5", text:"Review app permissions (camera, mic, location)", sev:"high", guide:"Settings → Privacy & Security → review each category" },
+    { id:"i6", text:"Disable Siri on Lock Screen", sev:"high", guide:"Settings → Face ID & Passcode → Allow Access When Locked → Siri Off" },
+    { id:"i7", text:"Enable Stolen Device Protection", sev:"critical", guide:"Settings → Face ID & Passcode → Stolen Device Protection → On" },
+    { id:"i8", text:"Use Safari Intelligent Tracking Prevention", sev:"medium", guide:"Settings → Safari → Prevent Cross-Site Tracking → On" },
+    { id:"i9", text:"Enable Lockdown Mode (high-risk users)", sev:"high", guide:"Settings → Privacy & Security → Lockdown Mode → Turn On" },
+    { id:"i10", text:"Disable AirDrop from everyone", sev:"medium", guide:"Settings → General → AirDrop → Receiving Off or Contacts Only" },
+    { id:"i11", text:"Enable iCloud Private Relay (Safari)", sev:"medium", guide:"Settings → [Your Name] → iCloud → Private Relay → On" },
+    { id:"i12", text:"Check Safety Check for shared access", sev:"high", guide:"Settings → Privacy & Security → Safety Check → review shared access" },
+  ],
   browser: [
     { id:"b1", text:"Enable HTTPS-Only mode", sev:"critical", guide:"Settings → Security → Always use HTTPS" },
     { id:"b2", text:"Install uBlock Origin", sev:"high", guide:"Chrome Web Store → uBlock Origin" },
@@ -806,7 +842,7 @@ const DEVICE_CHECKS = {
     { id:"d12", text:"Never commit .env files", sev:"critical", cmd:"git rm --cached .env", guide:"Verify: git status" },
   ],
 };
-const DEVICE_META = { windows: { name:"Windows", icon:<I.Monitor/> }, android: { name:"Android", icon:<I.Phone/> }, browser: { name:"Browsers", icon:<I.Globe/> }, network: { name:"Network", icon:<I.Wifi/> }, developer: { name:"Developer", icon:<I.Terminal/> } };
+const DEVICE_META = { windows: { name:"Windows", icon:<I.Monitor/> }, android: { name:"Android", icon:<I.Phone/> }, ios: { name:"iOS / Apple", icon:<I.Apple/> }, browser: { name:"Browsers", icon:<I.Globe/> }, network: { name:"Network", icon:<I.Wifi/> }, developer: { name:"Developer", icon:<I.Terminal/> } };
 
 function DeviceTab({ checks, setChecks }) {
   const [active, setActive] = useState("windows");
@@ -1856,7 +1892,7 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
