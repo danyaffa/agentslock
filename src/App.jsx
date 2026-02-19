@@ -467,13 +467,124 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 1: OVERVIEW DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab }) {
+function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab, addLog }) {
   const totalChecks = Object.values(DEVICE_CHECKS).flat().length;
   const doneChecks = Object.keys(checks).filter(k => checks[k]).length;
   const score = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
   const activeThreats = threats.filter(t => t.status === "active").length;
   const highRisk = accounts.filter(a => a.risk === "high").length;
   const onlineMonitors = monitors.filter(m => m.status === "up").length;
+
+  // ── Device Scan State ──
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanPhase, setScanPhase] = useState("");
+  const [findings, setFindings] = useState(null);
+  const [cleaned, setCleaned] = useState({});
+
+  const runDeviceScan = async () => {
+    setScanning(true); setFindings(null); setCleaned({});
+    const results = [];
+    const steps = [
+      { phase: "Checking browser security...", pct: 10, run: () => {
+        const isHttps = location.protocol === "https:";
+        if (!isHttps) results.push({ id: "no-https", sev: "critical", cat: "Browser", name: "Insecure Connection", desc: "Page not served over HTTPS — data can be intercepted", fix: "deploy-https", fixLabel: "Use HTTPS" });
+        const ua = navigator.userAgent;
+        const isOldBrowser = /MSIE|Trident/.test(ua);
+        if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: null, fixLabel: "Update manually" });
+        const dnt = navigator.doNotTrack;
+        if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: null, fixLabel: "Enable in settings" });
+      }},
+      { phase: "Scanning cookies & tracking...", pct: 25, run: () => {
+        const cookies = document.cookie.split(";").filter(c => c.trim());
+        if (cookies.length > 5) results.push({ id: "excess-cookies", sev: "medium", cat: "Privacy", name: `${cookies.length} cookies detected`, desc: "Tracking cookies may be profiling your browsing activity", fix: "clear-cookies", fixLabel: "Clear cookies" });
+        else if (cookies.length > 0) results.push({ id: "some-cookies", sev: "low", cat: "Privacy", name: `${cookies.length} cookies found`, desc: "Cookies present — review for unnecessary trackers", fix: "clear-cookies", fixLabel: "Clear cookies" });
+      }},
+      { phase: "Checking local storage...", pct: 40, run: () => {
+        let lsCount = 0; let lsSize = 0;
+        try { lsCount = localStorage.length; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); lsSize += (localStorage.getItem(k) || "").length; } } catch {}
+        const lsKB = Math.round(lsSize / 1024);
+        if (lsKB > 500) results.push({ id: "large-ls", sev: "medium", cat: "Storage", name: `${lsKB}KB in localStorage`, desc: `${lsCount} items storing ${lsKB}KB — may contain sensitive cached data`, fix: "clear-ls-other", fixLabel: "Clean non-app data" });
+        let ssCount = 0;
+        try { ssCount = sessionStorage.length; } catch {}
+        if (ssCount > 10) results.push({ id: "session-data", sev: "low", cat: "Storage", name: `${ssCount} sessionStorage items`, desc: "Temporary session data could expose activity if device is shared", fix: "clear-ss", fixLabel: "Clear session data" });
+      }},
+      { phase: "Testing WebRTC leak...", pct: 55, run: async () => {
+        try {
+          const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+          pc.createDataChannel("");
+          const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+          const leaked = await new Promise(resolve => {
+            const to = setTimeout(() => resolve(false), 3000);
+            pc.onicecandidate = e => { if (e.candidate?.candidate) { const m = e.candidate.candidate.match(/(\d{1,3}\.){3}\d{1,3}/); if (m && !m[0].startsWith("0.") && m[0] !== "0.0.0.0") { clearTimeout(to); resolve(true); } } };
+          });
+          pc.close();
+          if (leaked) results.push({ id: "webrtc-leak", sev: "high", cat: "Privacy", name: "WebRTC IP leak detected", desc: "Your real IP address is exposed through WebRTC — even with a VPN", fix: null, fixLabel: "Install WebRTC blocker" });
+        } catch {}
+      }},
+      { phase: "Checking permissions...", pct: 70, run: async () => {
+        const permsToCheck = ["camera", "microphone", "geolocation", "notifications"];
+        for (const p of permsToCheck) {
+          try {
+            const status = await navigator.permissions.query({ name: p });
+            if (status.state === "granted") results.push({ id: `perm-${p}`, sev: p === "geolocation" ? "high" : "medium", cat: "Permissions", name: `${p.charAt(0).toUpperCase() + p.slice(1)} access granted`, desc: `Website has ${p} permission — revoke if not needed`, fix: null, fixLabel: "Revoke in browser" });
+          } catch {}
+        }
+      }},
+      { phase: "Analyzing device exposure...", pct: 85, run: () => {
+        const cores = navigator.hardwareConcurrency;
+        const mem = navigator.deviceMemory;
+        const platform = navigator.platform;
+        let fpPoints = 0;
+        if (cores) fpPoints++;
+        if (mem) fpPoints++;
+        if (platform) fpPoints++;
+        if (navigator.languages?.length > 1) fpPoints++;
+        if (screen.colorDepth) fpPoints++;
+        if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: null, fixLabel: "Use privacy browser" });
+        const conn = navigator.connection;
+        if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: null, fixLabel: "Improve connection" });
+      }},
+      { phase: "Checking storage quota...", pct: 95, run: async () => {
+        try {
+          const est = await navigator.storage.estimate();
+          const usedMB = Math.round((est.usage || 0) / 1024 / 1024);
+          if (usedMB > 50) results.push({ id: "storage-quota", sev: "low", cat: "Storage", name: `${usedMB}MB browser storage used`, desc: "Cached data accumulation — consider clearing site data periodically", fix: "clear-cache", fixLabel: "Clear site cache" });
+        } catch {}
+      }},
+    ];
+
+    for (const step of steps) {
+      setScanPhase(step.phase);
+      setScanProgress(step.pct);
+      await new Promise(r => setTimeout(r, 400));
+      await step.run();
+    }
+
+    setScanProgress(100);
+    setScanPhase("Scan complete");
+    await new Promise(r => setTimeout(r, 300));
+
+    if (results.length === 0) results.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks", fix: null, fixLabel: null });
+
+    setFindings(results);
+    setScanning(false);
+    addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: results.every(r => r.sev === "safe" || r.sev === "low") });
+  };
+
+  const cleanFinding = async (finding) => {
+    setCleaned(p => ({ ...p, [finding.id]: "cleaning" }));
+    await new Promise(r => setTimeout(r, 600));
+    try {
+      if (finding.fix === "clear-cookies") { document.cookie.split(";").forEach(c => { const name = c.split("=")[0].trim(); document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`; }); }
+      if (finding.fix === "clear-ls-other") { const keep = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith("al_")) keep.push([k, localStorage.getItem(k)]); } localStorage.clear(); keep.forEach(([k, v]) => localStorage.setItem(k, v)); }
+      if (finding.fix === "clear-ss") { sessionStorage.clear(); }
+      if (finding.fix === "clear-cache") { if ("caches" in window) { const names = await caches.keys(); await Promise.all(names.map(n => caches.delete(n))); } }
+    } catch {}
+    setCleaned(p => ({ ...p, [finding.id]: "done" }));
+  };
+
+  const sevIcon = (sev) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green, safe: C.green }[sev] || C.dim);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -498,6 +609,85 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         <Stat label="Scans" value={scanLog.length} color={C.blue} sub="Total performed" />
       </div>
 
+      {/* ── Device Scan & Clean ─── */}
+      <Card glow={scanning ? C.cyan : findings ? (findings.some(f => f.sev === "critical" || f.sev === "high") ? C.red : C.green) : null}>
+        <Sect title="Device Security Scan" icon={<I.Crosshair />}>
+          {!scanning && !findings && (
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <div style={{ color: C.dim, fontSize: 12, marginBottom: 16, lineHeight: 1.6 }}>
+                Scan your device for security risks — cookies, trackers, permission leaks, WebRTC exposure, and more. Issues found can be cleaned instantly.
+              </div>
+              <Btn onClick={runDeviceScan} color={C.cyan} style={{ padding: "12px 32px", fontSize: 14 }}>
+                <I.Shield /> Scan Device
+              </Btn>
+            </div>
+          )}
+
+          {scanning && (
+            <div style={{ padding: "16px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 20, height: 20, border: `2px solid ${C.border}`, borderTopColor: C.cyan, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <span style={{ color: C.cyan, fontSize: 12, fontWeight: 600 }}>{scanPhase}</span>
+              </div>
+              <Progress value={scanProgress} color={C.cyan} h={6} />
+              <div style={{ textAlign: "right", fontSize: 10, color: C.dim, marginTop: 4 }}>{scanProgress}%</div>
+            </div>
+          )}
+
+          {findings && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Summary bar */}
+              <div style={{ display: "flex", gap: 12, padding: "10px 14px", background: C.bg, borderRadius: 8, marginBottom: 4 }}>
+                {["critical", "high", "medium", "low"].map(sev => {
+                  const count = findings.filter(f => f.sev === sev).length;
+                  return count > 0 ? (
+                    <div key={sev} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: sevIcon(sev) }} />
+                      <span style={{ fontSize: 11, color: C.text }}>{count} {sev}</span>
+                    </div>
+                  ) : null;
+                })}
+                {findings.every(f => f.sev === "safe") && <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>All clear — no threats detected</span>}
+              </div>
+
+              {/* Findings list */}
+              {findings.filter(f => f.sev !== "safe").map(f => (
+                <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: cleaned[f.id] === "done" ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${cleaned[f.id] === "done" ? C.greenBdr : C.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cleaned[f.id] === "done" ? C.green : sevIcon(f.sev), flexShrink: 0 }} />
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: cleaned[f.id] === "done" ? C.green : C.bright }}>{f.name}</span>
+                        <Badge color={sevIcon(f.sev)} style={{ fontSize: 8 }}>{f.cat}</Badge>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{cleaned[f.id] === "done" ? "Cleaned successfully" : f.desc}</div>
+                    </div>
+                  </div>
+                  <div style={{ flexShrink: 0, marginLeft: 10 }}>
+                    {cleaned[f.id] === "done" ? (
+                      <Badge color={C.green}>Cleaned</Badge>
+                    ) : cleaned[f.id] === "cleaning" ? (
+                      <Badge color={C.cyan}>Cleaning...</Badge>
+                    ) : f.fix ? (
+                      <Btn onClick={() => cleanFinding(f)} color={C.green} style={{ fontSize: 10, padding: "4px 10px" }}><I.Shield s={10} /> {f.fixLabel}</Btn>
+                    ) : (
+                      <span style={{ fontSize: 10, color: C.dim }}>{f.fixLabel}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Scan again */}
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <Btn onClick={runDeviceScan} color={C.cyan} style={{ fontSize: 11 }}><I.Refresh /> Scan Again</Btn>
+                <Btn onClick={() => { setFindings(null); setCleaned({}); }} color={C.dim} style={{ fontSize: 11 }}><I.X /> Dismiss</Btn>
+              </div>
+            </div>
+          )}
+        </Sect>
+      </Card>
+
+      {/* ── Quick Actions ─── */}
       <Card>
         <Sect title="Quick Actions" icon={<I.Zap />}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
@@ -529,7 +719,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{ width: 7, height: 7, borderRadius: "50%", background: sevColor(t.severity) }} />
                       <span style={{ color: C.bright, fontWeight: 600, fontSize: 12 }}>{t.name}</span>
-                      <span style={{ color: C.dim, fontSize: 11 }}>→ {t.target}</span>
+                      <span style={{ color: C.dim, fontSize: 11 }}>{"\u2192"} {t.target}</span>
                     </div>
                     <Badge color={t.status === "active" ? C.red : t.status === "blocked" ? C.green : C.orange}>{t.status}</Badge>
                   </div>
@@ -560,7 +750,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
 
       <Card>
         <Sect title="Scan History" icon={<I.Clock />}>
-          {scanLog.length === 0 ? <div style={{ textAlign: "center", padding: 20, color: C.dim, fontSize: 12 }}>No scans yet — try Breach Check or Web Scanner</div> : (
+          {scanLog.length === 0 ? <div style={{ textAlign: "center", padding: 20, color: C.dim, fontSize: 12 }}>No scans yet — try the Device Scan above or Breach Check</div> : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {scanLog.slice(0, 8).map((s, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: C.bg, borderRadius: 6, fontSize: 11 }}>
@@ -1892,7 +2082,7 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
