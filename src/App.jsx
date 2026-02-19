@@ -524,6 +524,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
   const runDeviceScan = async () => {
     setScanning(true); setFindings(null); setEliminating(false); setElimProgress(null);
     const results = [];
+    const autoProtected = []; // Protections applied automatically — shown as green "Protected" items
     const pageOrigin = location.origin || location.href;
     const pageHost = location.hostname || "localhost";
 
@@ -545,9 +546,15 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
           const isOldBrowser = /MSIE|Trident/.test(ua);
           if (isOldBrowser) results.push({ id: "old-browser", sev: "critical", cat: "Browser", name: "Outdated Browser", desc: "Internet Explorer detected — highly vulnerable to attacks", fix: "block-old-browser", fixLabel: "Eliminate", elimDesc: "Block unsafe legacy APIs and apply security shims", origin: navigator.userAgent.match(/(MSIE\s[\d.]+|Trident\/[\d.]+)/)?.[0] || "Internet Explorer", originType: "browser" });
         }
+        // DNT: auto-protect instead of showing as threat
         if (!wasEliminated("no-dnt")) {
           const dnt = navigator.doNotTrack;
-          if (dnt !== "1") results.push({ id: "no-dnt", sev: "low", cat: "Privacy", name: "Do Not Track disabled", desc: "Browser is not sending Do Not Track signal to websites", fix: "enable-dnt-header", fixLabel: "Eliminate", elimDesc: "Inject DNT headers into app requests to signal tracking opt-out", origin: `${navigator.vendor || "Browser"} — ${pageHost}`, originType: "browser" });
+          if (dnt !== "1") {
+            applyProtection("enable-dnt-header");
+            autoProtected.push({ id: "no-dnt", cat: "Privacy", name: "Tracking opt-out enabled", desc: "Do Not Track signal is now active — websites are told not to track you", origin: `${navigator.vendor || "Browser"} — ${pageHost}`, originType: "browser" });
+          }
+        } else {
+          autoProtected.push({ id: "no-dnt", cat: "Privacy", name: "Tracking opt-out enabled", desc: "Do Not Track signal is active — websites are told not to track you", origin: `${navigator.vendor || "Browser"} — ${pageHost}`, originType: "browser" });
         }
       }},
       { phase: "Scanning cookies & tracking...", pct: 25, run: () => {
@@ -569,7 +576,11 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         if (ssCount > 10) results.push({ id: "session-data", sev: "low", cat: "Storage", name: `${ssCount} sessionStorage items`, desc: "Temporary session data could expose activity if device is shared", fix: "clear-ss", fixLabel: "Eliminate", elimDesc: "Wipe all session data to prevent exposure on shared devices", origin: `${pageHost}/sessionStorage (${ssCount} keys)`, originType: "storage" });
       }},
       { phase: "Testing WebRTC leak...", pct: 55, run: async () => {
-        if (wasEliminated("webrtc-leak")) return; // Already blocked
+        if (wasEliminated("webrtc-leak")) {
+          // Already blocked from a previous session — show as protected
+          autoProtected.push({ id: "webrtc-leak", cat: "Privacy", name: "IP address hidden", desc: "WebRTC is blocked — your real IP address cannot be leaked, even on a VPN", origin: "WebRTC blocked by AgentsLock", originType: "ip" });
+          return;
+        }
         try {
           const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
           pc.createDataChannel("");
@@ -580,7 +591,11 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
             pc.onicecandidate = e => { if (e.candidate?.candidate) { const m = e.candidate.candidate.match(/(\d{1,3}\.){3}\d{1,3}/); if (m && !m[0].startsWith("0.") && m[0] !== "0.0.0.0") { leakedIP = m[0]; clearTimeout(to); resolve(true); } } };
           });
           pc.close();
-          if (leakedIP) results.push({ id: "webrtc-leak", sev: "high", cat: "Privacy", name: "WebRTC IP leak detected", desc: "Your real IP address is exposed through WebRTC — even with a VPN", fix: "block-webrtc", fixLabel: "Eliminate", elimDesc: "Disable WebRTC peer connections to stop IP leak — does not affect normal browsing", origin: `${leakedIP} via stun.l.google.com:19302`, originType: "ip" });
+          if (leakedIP) {
+            // Auto-protect: block WebRTC immediately
+            applyProtection("block-webrtc");
+            autoProtected.push({ id: "webrtc-leak", cat: "Privacy", name: "IP address hidden", desc: "WebRTC leak detected and blocked — your real IP is now protected", origin: `${leakedIP} → blocked by AgentsLock`, originType: "ip" });
+          }
         } catch {}
       }},
       { phase: "Checking permissions...", pct: 70, run: async () => {
@@ -594,7 +609,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
         }
       }},
       { phase: "Analyzing device exposure...", pct: 85, run: () => {
-        // Skip fingerprint check if already eliminated or spoofed by AgentsLock
+        // Fingerprinting: auto-protect instead of showing as threat
         if (!wasEliminated("fingerprint") && !window.__alFingerprintSpoofed) {
           const cores = navigator.hardwareConcurrency;
           const mem = navigator.deviceMemory;
@@ -605,7 +620,14 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
           if (platform) { fpPoints++; fpAPIs.push("platform"); }
           if (navigator.languages?.length > 1) { fpPoints++; fpAPIs.push("languages"); }
           if (screen.colorDepth) { fpPoints++; fpAPIs.push("screen.colorDepth"); }
-          if (fpPoints >= 4) results.push({ id: "fingerprint", sev: "medium", cat: "Privacy", name: "Device fingerprinting exposure", desc: `${fpPoints} data points exposed (CPU, memory, screen, language) — sites can track you`, fix: "spoof-fingerprint", fixLabel: "Eliminate", elimDesc: "Randomize exposed device properties to break fingerprint tracking", origin: `navigator.{${fpAPIs.join(", ")}}`, originType: "api" });
+          if (fpPoints >= 4) {
+            // Auto-protect: spoof fingerprint immediately
+            applyProtection("spoof-fingerprint");
+            autoProtected.push({ id: "fingerprint", cat: "Privacy", name: "Fingerprint randomized", desc: `${fpPoints} device identifiers scrambled — tracking sites can no longer identify you`, origin: `navigator.{${fpAPIs.join(", ")}} → randomized`, originType: "api" });
+          }
+        } else {
+          // Already protected
+          autoProtected.push({ id: "fingerprint", cat: "Privacy", name: "Fingerprint randomized", desc: "Device identifiers are scrambled — tracking sites cannot identify you", origin: "Device properties randomized by AgentsLock", originType: "api" });
         }
         const conn = navigator.connection;
         if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") results.push({ id: "slow-net", sev: "low", cat: "Network", name: "Slow network connection", desc: "Slow connection may cause timeouts during security operations", fix: "optimize-net", fixLabel: "Eliminate", elimDesc: "Enable request compression and reduce payload sizes for faster operations", origin: `${conn.effectiveType} via navigator.connection`, originType: "api" });
@@ -631,19 +653,31 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
     if (publicIP) { results.forEach(r => { if (r.originType === "ip" || r.originType === "address") { if (!r.origin.includes(publicIP)) r.publicIP = publicIP; } else { r.publicIP = publicIP; } }); }
 
     setScanProgress(100);
-    setScanPhase("Scan complete");
+    setScanPhase("Scan complete — protections applied");
     await new Promise(r => setTimeout(r, 300));
+
+    // Mark auto-protected items as "done" in cleaned state
+    if (autoProtected.length > 0) {
+      const newCleaned = { ...cleanedRef.current };
+      autoProtected.forEach(p => { newCleaned[p.id] = "done"; });
+      setCleaned(newCleaned);
+      cleanedRef.current = newCleaned;
+    }
 
     // Filter out threats that were already eliminated (protections active)
     // Use ref to get the latest deviceCleaned value (avoids stale closure in async function)
     const currentCleaned = cleanedRef.current;
     const filtered = results.filter(r => currentCleaned[r.id] !== "done");
 
-    if (filtered.length === 0) filtered.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks — previously eliminated threats remain blocked", fix: null, fixLabel: null, elimDesc: null, origin: null });
+    // Build final findings: auto-protected items (green) + remaining actionable items
+    const protectedFindings = autoProtected.map(p => ({ ...p, sev: "protected", fix: null, fixLabel: null, elimDesc: null }));
+    const combined = [...protectedFindings, ...filtered];
 
-    setFindings(filtered);
+    if (combined.length === 0) combined.push({ id: "all-clear", sev: "safe", cat: "System", name: "All clear — fully protected", desc: "Your device passed all security checks", fix: null, fixLabel: null, elimDesc: null, origin: null });
+
+    setFindings(combined);
     setScanning(false);
-    addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: filtered.every(r => r.sev === "safe" || r.sev === "low") });
+    addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: combined.every(r => r.sev === "safe" || r.sev === "low" || r.sev === "protected") });
   };
 
   // ── Safe elimination actions per fix type ──
@@ -673,7 +707,10 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
       setFindings(prev => {
         if (!prev) return prev;
         const remaining = prev.filter(f => f.id !== finding.id);
-        if (remaining.length === 0 || remaining.every(f => f.sev === "safe")) return [{ id: "all-clear", sev: "safe", cat: "System", name: "All threats eliminated", desc: "Your device passed all security checks — previously eliminated threats remain blocked", fix: null, fixLabel: null, elimDesc: null, origin: null }];
+        if (remaining.length === 0 || remaining.every(f => f.sev === "safe" || f.sev === "protected")) {
+          const protectedItems = remaining.filter(f => f.sev === "protected");
+          return [...protectedItems, { id: "all-clear", sev: "safe", cat: "System", name: "All clear — fully protected", desc: "Your device is secured and clean", fix: null, fixLabel: null, elimDesc: null, origin: null }];
+        }
         return remaining;
       });
     }, 1200);
@@ -686,7 +723,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
   const eliminateAll = async () => {
     if (!findings) return;
     // Use ref for latest cleaned state to avoid stale closure
-    const actionable = findings.filter(f => f.sev !== "safe" && f.fix && cleanedRef.current[f.id] !== "done");
+    const actionable = findings.filter(f => f.sev !== "safe" && f.sev !== "protected" && f.fix && cleanedRef.current[f.id] !== "done");
     if (actionable.length === 0) return;
     setEliminating(true);
     setElimProgress({ done: 0, total: actionable.length, current: "" });
@@ -696,17 +733,20 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
       setElimProgress({ done: i + 1, total: actionable.length, current: actionable[i].name });
     }
     setEliminating(false);
-    // Remove eliminated threats from findings — show only safe result
+    // Remove cleaned items from findings — keep protected items visible
     setFindings(prev => {
       if (!prev) return prev;
-      const remaining = prev.filter(f => f.sev === "safe" || !actionable.find(a => a.id === f.id));
-      if (remaining.length === 0) return [{ id: "all-clear", sev: "safe", cat: "System", name: "All threats eliminated", desc: "Your device passed all security checks — previously eliminated threats remain blocked", fix: null, fixLabel: null, elimDesc: null, origin: null }];
+      const remaining = prev.filter(f => f.sev === "safe" || f.sev === "protected" || !actionable.find(a => a.id === f.id));
+      if (remaining.length === 0 || remaining.every(f => f.sev === "protected" || f.sev === "safe")) {
+        const protectedItems = remaining.filter(f => f.sev === "protected");
+        return [...protectedItems, { id: "all-clear", sev: "safe", cat: "System", name: "All clear — fully protected", desc: "Your device is secured and clean", fix: null, fixLabel: null, elimDesc: null, origin: null }];
+      }
       return remaining;
     });
     addLog({ type: "Eliminate", target: `${actionable.length} threats`, safe: true });
   };
 
-  const sevIcon = (sev) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green, safe: C.green }[sev] || C.dim);
+  const sevIcon = (sev) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green, safe: C.green, protected: C.green }[sev] || C.dim);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -733,11 +773,11 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
 
       {/* ── Device Scan & Clean ─── */}
       <Card glow={scanning ? C.cyan : findings ? (findings.some(f => f.sev === "critical" || f.sev === "high") ? C.red : C.green) : null}>
-        <Sect title="Device Security Scan" icon={<I.Crosshair />}>
+        <Sect title="Device Security & Protection" icon={<I.Shield />}>
           {!scanning && !findings && (
             <div style={{ textAlign: "center", padding: "20px 0" }}>
               <div style={{ color: C.dim, fontSize: 12, marginBottom: 16, lineHeight: 1.6 }}>
-                Scan your device for security risks — cookies, trackers, permission leaks, WebRTC exposure, and more. Issues found can be cleaned instantly.
+                Scan and protect your device — AgentsLock automatically shields your IP, blocks fingerprinting, and enables tracking protection. Additional cleanup options are shown if needed.
               </div>
               <Btn onClick={runDeviceScan} color={C.cyan} style={{ padding: "12px 32px", fontSize: 14 }}>
                 <I.Shield /> Scan Device
@@ -760,43 +800,80 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Summary bar */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: C.bg, borderRadius: 8, marginBottom: 4 }}>
-                <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  {(() => {
+                    const protectedCount = findings.filter(f => f.sev === "protected").length;
+                    return protectedCount > 0 ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <I.Shield s={12} />
+                        <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>{protectedCount} protected</span>
+                      </div>
+                    ) : null;
+                  })()}
                   {["critical", "high", "medium", "low"].map(sev => {
                     const count = findings.filter(f => f.sev === sev).length;
                     return count > 0 ? (
                       <div key={sev} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <div style={{ width: 8, height: 8, borderRadius: "50%", background: sevIcon(sev) }} />
-                        <span style={{ fontSize: 11, color: C.text }}>{count} {sev}</span>
+                        <span style={{ fontSize: 11, color: C.text }}>{count} {sev === "low" ? "optional" : sev}</span>
                       </div>
                     ) : null;
                   })}
-                  {findings.every(f => f.sev === "safe") && <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>All clear — no threats detected</span>}
+                  {findings.every(f => f.sev === "safe" || f.sev === "protected") && <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>All clear — fully protected</span>}
                 </div>
                 {(() => {
-                  const actionable = findings.filter(f => f.sev !== "safe" && f.fix && cleaned[f.id] !== "done");
-                  const allDone = findings.filter(f => f.sev !== "safe").length > 0 && findings.filter(f => f.sev !== "safe").every(f => cleaned[f.id] === "done");
+                  const actionable = findings.filter(f => f.sev !== "safe" && f.sev !== "protected" && f.fix && cleaned[f.id] !== "done");
+                  const allDone = findings.filter(f => f.sev !== "safe" && f.sev !== "protected").length > 0 && findings.filter(f => f.sev !== "safe" && f.sev !== "protected").every(f => cleaned[f.id] === "done");
                   return actionable.length > 0 && !eliminating ? (
-                    <Btn onClick={eliminateAll} color={C.red} style={{ fontSize: 11, padding: "5px 14px" }}><I.Crosshair /> Eliminate All ({actionable.length})</Btn>
+                    <Btn onClick={eliminateAll} color={C.orange} style={{ fontSize: 11, padding: "5px 14px" }}><I.Crosshair /> Clean Up ({actionable.length})</Btn>
                   ) : allDone ? (
-                    <Badge color={C.green}>All Eliminated</Badge>
+                    <Badge color={C.green}>All Clean</Badge>
                   ) : null;
                 })()}
               </div>
 
               {/* Eliminate All progress */}
               {eliminating && elimProgress && (
-                <div style={{ padding: "10px 14px", background: `${C.red}08`, border: `1px solid ${C.red}25`, borderRadius: 8 }}>
+                <div style={{ padding: "10px 14px", background: `${C.orange}08`, border: `1px solid ${C.orange}25`, borderRadius: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                    <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, borderTopColor: C.red, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                    <span style={{ color: C.red, fontSize: 12, fontWeight: 600 }}>Eliminating threats... ({elimProgress.done}/{elimProgress.total})</span>
+                    <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, borderTopColor: C.orange, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                    <span style={{ color: C.orange, fontSize: 12, fontWeight: 600 }}>Cleaning up... ({elimProgress.done}/{elimProgress.total})</span>
                   </div>
-                  <Progress value={elimProgress.total > 0 ? Math.round((elimProgress.done / elimProgress.total) * 100) : 0} color={C.red} h={4} />
-                  <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Neutralizing: {elimProgress.current}</div>
+                  <Progress value={elimProgress.total > 0 ? Math.round((elimProgress.done / elimProgress.total) * 100) : 0} color={C.orange} h={4} />
+                  <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Cleaning: {elimProgress.current}</div>
                 </div>
               )}
 
-              {/* Findings list */}
-              {findings.filter(f => f.sev !== "safe").map(f => (
+              {/* Auto-protected items — shown first with green styling */}
+              {findings.filter(f => f.sev === "protected").map(f => (
+                <div key={f.id} style={{ padding: "10px 14px", background: `${C.green}08`, borderRadius: 8, border: `1px solid ${C.green}30`, transition: "all 0.3s" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                      <I.Shield s={14} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: C.green }}>{f.name}</span>
+                          <Badge color={C.green}>{f.cat}</Badge>
+                        </div>
+                        <div style={{ fontSize: 10, color: `${C.green}cc`, marginTop: 2 }}>{f.desc}</div>
+                      </div>
+                    </div>
+                    <Badge color={C.green}>Protected</Badge>
+                  </div>
+                  {f.origin && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, marginLeft: 18, padding: "4px 10px", background: `${C.green}08`, borderRadius: 5, width: "fit-content" }}>
+                      <I.Shield s={10} />
+                      <span style={{ fontSize: 10, color: `${C.green}99`, letterSpacing: "0.02em" }}>{f.origin}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Actionable findings — things user can optionally clean */}
+              {findings.filter(f => f.sev !== "safe" && f.sev !== "protected").length > 0 && (
+                <div style={{ fontSize: 10, color: C.dim, marginTop: 4, marginBottom: -4, paddingLeft: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Optional cleanup</div>
+              )}
+              {findings.filter(f => f.sev !== "safe" && f.sev !== "protected").map(f => (
                 <div key={f.id} style={{ padding: "10px 14px", background: cleaned[f.id] === "done" ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${cleaned[f.id] === "done" ? C.greenBdr : C.border}`, transition: "all 0.3s" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
@@ -807,20 +884,20 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
                           <Badge color={sevIcon(f.sev)}>{f.cat}</Badge>
                         </div>
                         <div style={{ fontSize: 10, color: cleaned[f.id] === "done" ? C.green : C.dim, marginTop: 2 }}>
-                          {cleaned[f.id] === "done" ? "Threat eliminated — your device is safe" : cleaned[f.id] === "cleaning" ? f.elimDesc : f.desc}
+                          {cleaned[f.id] === "done" ? "Cleaned up — your device is tidy" : cleaned[f.id] === "cleaning" ? f.elimDesc : f.desc}
                         </div>
                       </div>
                     </div>
                     <div style={{ flexShrink: 0, marginLeft: 10 }}>
                       {cleaned[f.id] === "done" ? (
-                        <Badge color={C.green}>Eliminated</Badge>
+                        <Badge color={C.green}>Cleaned</Badge>
                       ) : cleaned[f.id] === "cleaning" ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ width: 12, height: 12, border: `2px solid ${C.border}`, borderTopColor: C.red, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                          <span style={{ fontSize: 10, color: C.red, fontWeight: 600 }}>Eliminating...</span>
+                          <div style={{ width: 12, height: 12, border: `2px solid ${C.border}`, borderTopColor: C.orange, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                          <span style={{ fontSize: 10, color: C.orange, fontWeight: 600 }}>Cleaning...</span>
                         </div>
                       ) : f.fix ? (
-                        <Btn onClick={() => eliminateFinding(f)} color={C.red} style={{ fontSize: 10, padding: "4px 12px" }} disabled={eliminating}><I.Crosshair /> Eliminate</Btn>
+                        <Btn onClick={() => eliminateFinding(f)} color={C.orange} style={{ fontSize: 10, padding: "4px 12px" }} disabled={eliminating}><I.Crosshair /> Clean</Btn>
                       ) : (
                         <span style={{ fontSize: 10, color: C.dim, fontStyle: "italic" }}>{f.fixLabel || "Manual action"}</span>
                       )}
