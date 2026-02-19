@@ -3,13 +3,13 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAn_QZCMF4aQyXtPHAJqDLHa1tQcOqZDWA",
-  authDomain: "agentslock-3221b.firebaseapp.com",
-  projectId: "agentslock-3221b",
-  storageBucket: "agentslock-3221b.firebasestorage.app",
-  messagingSenderId: "648882538183",
-  appId: "1:648882538183:web:85fe9a803870a94bfb20e2",
-  measurementId: "G-H3M3R1FECE"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);
