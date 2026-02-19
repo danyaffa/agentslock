@@ -516,22 +516,7 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
   const [scanPhase, setScanPhase] = useState("");
   const [findings, setFindings] = useState(null);
   const cleaned = deviceCleaned;
-  const setCleaned = (v) => setDeviceCleaned(typeof v === "function" ? v(deviceCleaned) : v);
-
-  // Re-apply runtime protections on mount for previously eliminated threats
-  const protectionsApplied = useRef(false);
-  useEffect(() => {
-    if (protectionsApplied.current) return;
-    const doneItems = Object.entries(cleaned).filter(([, v]) => v === "done");
-    if (doneItems.length > 0) {
-      protectionsApplied.current = true;
-      doneItems.forEach(([id]) => {
-        const fixMap = { "webrtc-leak": "block-webrtc", "fingerprint": "spoof-fingerprint", "no-dnt": "enable-dnt-header", "no-https": "deploy-https" };
-        const fixId = fixMap[id] || (id.startsWith("perm-") ? `revoke-${id}` : null);
-        if (fixId) applyProtection(fixId);
-      });
-    }
-  }, [cleaned]);
+  const setCleaned = setDeviceCleaned; // React's native setState — properly handles functional updates
 
   const runDeviceScan = async () => {
     setScanning(true); setFindings(null); setEliminating(false); setElimProgress(null);
@@ -635,11 +620,15 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
     setScanPhase("Scan complete");
     await new Promise(r => setTimeout(r, 300));
 
-    if (results.length === 0) results.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks", fix: null, fixLabel: null, elimDesc: null, origin: null });
+    // Filter out threats that were already eliminated (protections active)
+    const currentCleaned = deviceCleaned;
+    const filtered = results.filter(r => currentCleaned[r.id] !== "done");
 
-    setFindings(results);
+    if (filtered.length === 0) filtered.push({ id: "all-clear", sev: "safe", cat: "System", name: "No threats detected", desc: "Your device passed all security checks — previously eliminated threats remain blocked", fix: null, fixLabel: null, elimDesc: null, origin: null });
+
+    setFindings(filtered);
     setScanning(false);
-    addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: results.every(r => r.sev === "safe" || r.sev === "low") });
+    addLog({ type: "DeviceScan", target: navigator.platform || "Device", safe: filtered.every(r => r.sev === "safe" || r.sev === "low") });
   };
 
   // ── Safe elimination actions per fix type ──
@@ -2050,7 +2039,7 @@ export default function App() {
   const [accounts, setAccounts] = useState(INIT_ACCOUNTS);
   const [monitors, setMonitors] = useState([]);
   const [scanLog, setScanLog] = useState([]);
-  const [deviceCleaned, setDeviceCleaned] = useState({});
+  const [deviceCleaned, setDeviceCleaned] = useState(() => LS.get("deviceCleaned", {}));
   const [now, setNow] = useState(new Date());
   const [dataLoaded, setDataLoaded] = useState(false);
   const [legalPage, setLegalPage] = useState(null);
@@ -2101,7 +2090,28 @@ export default function App() {
   const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); };
   const setAccountsAndSave = (v) => { const nv = typeof v === "function" ? v(accounts) : v; setAccounts(nv); autoSave("accounts", nv); };
   const setMonitorsAndSave = (v) => { const nv = typeof v === "function" ? v(monitors) : v; setMonitors(nv); autoSave("monitors", nv); };
-  const setDeviceCleanedAndSave = (v) => { const nv = typeof v === "function" ? v(deviceCleaned) : v; setDeviceCleaned(nv); autoSave("deviceCleaned", nv); };
+  // Auto-save deviceCleaned whenever it changes (useEffect avoids stale closure issues with functional setState)
+  const deviceCleanedLoaded = useRef(false);
+  useEffect(() => {
+    if (!deviceCleanedLoaded.current) { deviceCleanedLoaded.current = true; return; }
+    if (!user || !dataLoaded) return;
+    autoSave("deviceCleaned", deviceCleaned);
+  }, [deviceCleaned]);
+
+  // Re-apply runtime protections on startup for all previously eliminated threats
+  const protectionsBootstrapped = useRef(false);
+  useEffect(() => {
+    if (protectionsBootstrapped.current) return;
+    const doneItems = Object.entries(deviceCleaned).filter(([, v]) => v === "done");
+    if (doneItems.length > 0) {
+      protectionsBootstrapped.current = true;
+      const fixMap = { "webrtc-leak": "block-webrtc", "fingerprint": "spoof-fingerprint", "no-dnt": "enable-dnt-header", "no-https": "deploy-https" };
+      doneItems.forEach(([id]) => {
+        const fixId = fixMap[id] || (id.startsWith("perm-") ? `revoke-${id}` : null);
+        if (fixId) applyProtection(fixId);
+      });
+    }
+  }, [deviceCleaned]);
   const addLog = (entry) => { const n = [{ ...entry, time: new Date().toISOString() }, ...scanLog].slice(0, 100); setScanLog(n); autoSave("scanLog", n); };
 
   // Auto-check monitors every 5 min
@@ -2228,7 +2238,7 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleanedAndSave} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
