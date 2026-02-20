@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Component } from "react";
-import { auth, db, firebaseError, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, googleReauth, getAllUsers, adminDeleteUser, adminUpdateUser } from "./firebase.js";
+import { auth, db, firebaseError, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, getAllUsers, adminDeleteUser, adminUpdateUser } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
@@ -2337,8 +2337,10 @@ function AdminDashboard({ user, onClose }) {
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyErr, setVerifyErr] = useState("");
+  const [adminPassInput, setAdminPassInput] = useState("");
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all"); // all, paypal, promo, none
   const [selectedUser, setSelectedUser] = useState(null);
@@ -2346,39 +2348,39 @@ function AdminDashboard({ user, onClose }) {
   const [actionBusy, setActionBusy] = useState(false);
 
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+  const adminPassword = import.meta.env.VITE_ADMIN_ACCESS_PASSWORD;
 
-  // Google 2FA verification
+  // Admin password verification
   const handleVerify = async () => {
     setVerifying(true);
     setVerifyErr("");
-    try {
-      const gUser = await googleReauth();
-      if (gUser.email.toLowerCase() !== adminEmail.toLowerCase()) {
-        setVerifyErr("Google account does not match admin email. Access denied.");
-        setVerifying(false);
-        return;
-      }
-      setVerified(true);
-      loadUsers();
-    } catch (e) {
-      if (e.code === "auth/popup-closed-by-user") {
-        setVerifyErr("Sign-in popup was closed. Please try again.");
-      } else if (e.code === "auth/cancelled-popup-request") {
-        setVerifyErr("Sign-in was cancelled. Please try again.");
-      } else {
-        setVerifyErr(e.message || "Google verification failed.");
-      }
+    if (!adminPassword) {
+      setVerifyErr("VITE_ADMIN_ACCESS_PASSWORD is not configured in environment variables.");
+      setVerifying(false);
+      return;
     }
+    if (adminPassInput !== adminPassword) {
+      setVerifyErr("Incorrect admin password. Access denied.");
+      setVerifying(false);
+      return;
+    }
+    setVerified(true);
     setVerifying(false);
+    loadUsers();
   };
 
   const loadUsers = async () => {
     setLoadingUsers(true);
+    setLoadError("");
     try {
       const all = await getAllUsers();
       setUsers(all);
     } catch (e) {
       console.error("Failed to load users:", e);
+      const msg = e.code === "permission-denied"
+        ? "Firestore permission denied. Update your Firestore security rules to allow admin read access. Go to Firebase Console → Firestore → Rules."
+        : (e.message || "Failed to load users.");
+      setLoadError(msg);
     }
     setLoadingUsers(false);
   };
@@ -2430,7 +2432,7 @@ function AdminDashboard({ user, onClose }) {
     return matchSearch;
   });
 
-  // ─── 2FA Gate ─────────────────────────────────────────────────────────────
+  // ─── Admin Password Gate ────────────────────────────────────────────────
   if (!verified) {
     return (
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -2440,16 +2442,23 @@ function AdminDashboard({ user, onClose }) {
               <I.Lock s={28} style={{ color: "#fff" }} />
             </div>
             <h2 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, margin: "0 0 8px" }}>Admin Verification</h2>
-            <p style={{ color: C.dim, fontSize: 13, margin: 0 }}>Sign in with Google to verify your identity.</p>
-            <p style={{ color: C.dim, fontSize: 11, margin: "8px 0 0" }}>Two-factor authentication via Google is required.</p>
+            <p style={{ color: C.dim, fontSize: 13, margin: 0 }}>Enter your admin password to access the dashboard.</p>
           </div>
           {verifyErr && (
             <div style={{ padding: "10px 14px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 8, color: C.red, fontSize: 12, marginBottom: 16 }}>{verifyErr}</div>
           )}
-          <button onClick={handleVerify} disabled={verifying}
-            style={{ width: "100%", padding: "12px 20px", background: "#fff", border: "none", borderRadius: 8, cursor: verifying ? "not-allowed" : "pointer", fontSize: 14, fontFamily: "inherit", fontWeight: 600, color: "#333", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: verifying ? 0.7 : 1, transition: "opacity 0.2s" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-            {verifying ? "Verifying..." : "Sign in with Google"}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Admin Email</label>
+            <div style={{ padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.dim, fontSize: 13, fontFamily: "inherit" }}>{user.email}</div>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Admin Password</label>
+            <Input value={adminPassInput} onChange={setAdminPassInput} placeholder="Enter admin password" type="password" icon={<I.Key />} />
+          </div>
+          <button onClick={handleVerify} disabled={verifying || !adminPassInput}
+            style={{ width: "100%", padding: "12px 20px", background: `linear-gradient(135deg, ${C.orange}, ${C.red})`, border: "none", borderRadius: 8, cursor: (verifying || !adminPassInput) ? "not-allowed" : "pointer", fontSize: 14, fontFamily: "inherit", fontWeight: 600, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: (verifying || !adminPassInput) ? 0.6 : 1, transition: "opacity 0.2s" }}>
+            <I.Lock s={16} />
+            {verifying ? "Verifying..." : "Access Dashboard"}
           </button>
           <button onClick={onClose}
             style={{ width: "100%", marginTop: 12, padding: "10px 20px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: C.dim, transition: "border-color 0.2s" }}>
@@ -2476,7 +2485,7 @@ function AdminDashboard({ user, onClose }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Btn onClick={loadUsers} color={C.blue} disabled={loadingUsers}><I.Refresh /> Refresh</Btn>
-          <Btn onClick={onClose} color={C.dim}><I.X /> Close</Btn>
+          <Btn onClick={onClose} color={C.green}><I.Shield s={14} /> Return to App</Btn>
         </div>
       </div>
 
@@ -2549,12 +2558,19 @@ function AdminDashboard({ user, onClose }) {
             </h3>
           </div>
 
+          {loadError && (
+            <div style={{ padding: "12px 16px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 8, color: C.red, fontSize: 12, marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Error loading users</div>
+              <div>{loadError}</div>
+            </div>
+          )}
+
           {loadingUsers ? (
             <div style={{ textAlign: "center", padding: 40, color: C.dim }}>
               <div style={{ animation: "spin 1s linear infinite", display: "inline-block", marginBottom: 12 }}><I.Refresh s={24} /></div>
               <div>Loading users...</div>
             </div>
-          ) : filteredUsers.length === 0 ? (
+          ) : filteredUsers.length === 0 && !loadError ? (
             <div style={{ textAlign: "center", padding: 40, color: C.dim }}>No users found.</div>
           ) : (
             <div style={{ overflowX: "auto" }}>
