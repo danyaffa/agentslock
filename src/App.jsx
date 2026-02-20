@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Component } from "react";
-import { auth, db, firebaseError, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription } from "./firebase.js";
+import { auth, db, firebaseError, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, googleReauth, getAllUsers, adminDeleteUser, adminUpdateUser } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
@@ -132,8 +132,10 @@ function useAuth() {
     catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
   const doSignup = async (email, name, pass, promoCode) => {
-    try { await signUp(email, pass, name, promoCode); return { ok: true }; }
-    catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
+    try {
+      const result = await signUp(email, pass, name, promoCode);
+      return { ok: true, subscription: result.subscription };
+    } catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
   const doLogout = async () => { await logOut(); };
   return { user, loading, login: doLogin, signup: doSignup, logout: doLogout };
@@ -2328,6 +2330,373 @@ const INIT_ACCOUNTS = [
   { id:8, name:"Domain Registrar", icon:"🌐", twoFA:false, method:"None", appPw:false, sessions:1, lastReview:"Never", risk:"high" },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN DASHBOARD — Management Panel (Google 2FA Protected)
+// ═══════════════════════════════════════════════════════════════════════════════
+function AdminDashboard({ user, onClose }) {
+  const [verified, setVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyErr, setVerifyErr] = useState("");
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all"); // all, paypal, promo, none
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+
+  // Google 2FA verification
+  const handleVerify = async () => {
+    setVerifying(true);
+    setVerifyErr("");
+    try {
+      const gUser = await googleReauth();
+      if (gUser.email.toLowerCase() !== adminEmail.toLowerCase()) {
+        setVerifyErr("Google account does not match admin email. Access denied.");
+        setVerifying(false);
+        return;
+      }
+      setVerified(true);
+      loadUsers();
+    } catch (e) {
+      if (e.code === "auth/popup-closed-by-user") {
+        setVerifyErr("Sign-in popup was closed. Please try again.");
+      } else if (e.code === "auth/cancelled-popup-request") {
+        setVerifyErr("Sign-in was cancelled. Please try again.");
+      } else {
+        setVerifyErr(e.message || "Google verification failed.");
+      }
+    }
+    setVerifying(false);
+  };
+
+  const loadUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const all = await getAllUsers();
+      setUsers(all);
+    } catch (e) {
+      console.error("Failed to load users:", e);
+    }
+    setLoadingUsers(false);
+  };
+
+  const handleDeleteUser = async (uid) => {
+    setActionBusy(true);
+    try {
+      await adminDeleteUser(uid);
+      setUsers(prev => prev.filter(u => u.uid !== uid));
+      setConfirmDelete(null);
+      setSelectedUser(null);
+    } catch (e) {
+      console.error("Delete failed:", e);
+    }
+    setActionBusy(false);
+  };
+
+  const handleToggleSubscription = async (u) => {
+    setActionBusy(true);
+    try {
+      const hasActive = u.subscription?.status === "active";
+      const newSub = hasActive
+        ? { status: "inactive", deactivatedAt: new Date().toISOString() }
+        : { status: "active", plan: "admin_granted", amount: 0, currency: "USD", subscribedAt: new Date().toISOString(), provider: "admin" };
+      await adminUpdateUser(u.uid, { subscription: newSub });
+      setUsers(prev => prev.map(x => x.uid === u.uid ? { ...x, subscription: newSub } : x));
+      if (selectedUser?.uid === u.uid) setSelectedUser({ ...selectedUser, subscription: newSub });
+    } catch (e) {
+      console.error("Toggle subscription failed:", e);
+    }
+    setActionBusy(false);
+  };
+
+  // Stats
+  const totalUsers = users.length;
+  const paypalUsers = users.filter(u => u.subscription?.provider === "paypal" && u.subscription?.status === "active");
+  const promoUsers = users.filter(u => u.subscription?.provider === "promo_code" && u.subscription?.status === "active");
+  const adminGranted = users.filter(u => u.subscription?.provider === "admin" && u.subscription?.status === "active");
+  const activeSubscriptions = users.filter(u => u.subscription?.status === "active");
+  const totalRevenue = paypalUsers.reduce((sum, u) => sum + (u.subscription?.amount || 0), 0);
+  const noSubscription = users.filter(u => !u.subscription || u.subscription.status !== "active");
+
+  const filteredUsers = users.filter(u => {
+    const matchSearch = !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.displayName?.toLowerCase().includes(search.toLowerCase());
+    if (filter === "paypal") return matchSearch && u.subscription?.provider === "paypal" && u.subscription?.status === "active";
+    if (filter === "promo") return matchSearch && u.subscription?.provider === "promo_code" && u.subscription?.status === "active";
+    if (filter === "admin_granted") return matchSearch && u.subscription?.provider === "admin" && u.subscription?.status === "active";
+    if (filter === "none") return matchSearch && (!u.subscription || u.subscription.status !== "active");
+    return matchSearch;
+  });
+
+  // ─── 2FA Gate ─────────────────────────────────────────────────────────────
+  if (!verified) {
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif" }}>
+        <div style={{ width: 440, padding: 40, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16 }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.orange}, ${C.red})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <I.Lock s={28} style={{ color: "#fff" }} />
+            </div>
+            <h2 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, margin: "0 0 8px" }}>Admin Verification</h2>
+            <p style={{ color: C.dim, fontSize: 13, margin: 0 }}>Sign in with Google to verify your identity.</p>
+            <p style={{ color: C.dim, fontSize: 11, margin: "8px 0 0" }}>Two-factor authentication via Google is required.</p>
+          </div>
+          {verifyErr && (
+            <div style={{ padding: "10px 14px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 8, color: C.red, fontSize: 12, marginBottom: 16 }}>{verifyErr}</div>
+          )}
+          <button onClick={handleVerify} disabled={verifying}
+            style={{ width: "100%", padding: "12px 20px", background: "#fff", border: "none", borderRadius: 8, cursor: verifying ? "not-allowed" : "pointer", fontSize: 14, fontFamily: "inherit", fontWeight: 600, color: "#333", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: verifying ? 0.7 : 1, transition: "opacity 0.2s" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            {verifying ? "Verifying..." : "Sign in with Google"}
+          </button>
+          <button onClick={onClose}
+            style={{ width: "100%", marginTop: 12, padding: "10px 20px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: C.dim, transition: "border-color 0.2s" }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Admin Dashboard ──────────────────────────────────────────────────────
+  return (
+    <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 9999, overflow: "auto", fontFamily: "'Space Grotesk', sans-serif" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: `1px solid ${C.border}`, background: `${C.bgCard}ee`, backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.orange}, ${C.red})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <I.Settings s={20} style={{ color: "#fff" }} />
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 17, color: C.bright, letterSpacing: "0.04em" }}>ADMIN DASHBOARD</div>
+            <div style={{ fontSize: 10, color: C.dim }}>Management Panel — {user.email}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Btn onClick={loadUsers} color={C.blue} disabled={loadingUsers}><I.Refresh /> Refresh</Btn>
+          <Btn onClick={onClose} color={C.dim}><I.X /> Close</Btn>
+        </div>
+      </div>
+
+      <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
+        {/* Stats Cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
+          <Card glow={C.blue}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.dim, marginBottom: 4 }}>TOTAL USERS</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.bright, fontFamily: "'Chakra Petch'" }}>{totalUsers}</div>
+              </div>
+              <I.User s={24} style={{ color: C.blue }} />
+            </div>
+          </Card>
+          <Card glow={C.green}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.dim, marginBottom: 4 }}>ACTIVE SUBSCRIPTIONS</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.bright, fontFamily: "'Chakra Petch'" }}>{activeSubscriptions.length}</div>
+                <div style={{ fontSize: 10, color: C.dim }}>{paypalUsers.length} PayPal · {promoUsers.length} Promo · {adminGranted.length} Granted</div>
+              </div>
+              <I.Check s={24} style={{ color: C.green }} />
+            </div>
+          </Card>
+          <Card glow={C.orange}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.dim, marginBottom: 4 }}>MONTHLY REVENUE</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.bright, fontFamily: "'Chakra Petch'" }}>${totalRevenue}</div>
+                <div style={{ fontSize: 10, color: C.dim }}>{paypalUsers.length} paying user{paypalUsers.length !== 1 ? "s" : ""} × $18/mo</div>
+              </div>
+              <I.DollarSign s={24} style={{ color: C.orange }} />
+            </div>
+          </Card>
+          <Card glow={C.red}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.dim, marginBottom: 4 }}>NO SUBSCRIPTION</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.bright, fontFamily: "'Chakra Petch'" }}>{noSubscription.length}</div>
+                <div style={{ fontSize: 10, color: C.dim }}>Inactive / pending users</div>
+              </div>
+              <I.X s={24} style={{ color: C.red }} />
+            </div>
+          </Card>
+        </div>
+
+        {/* Search & Filter Bar */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <Input value={search} onChange={setSearch} placeholder="Search by name or email..." icon={<I.Search />} />
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["all", "All"], ["paypal", "PayPal"], ["promo", "Promo"], ["admin_granted", "Granted"], ["none", "Inactive"]].map(([k, label]) => (
+                <button key={k} onClick={() => setFilter(k)}
+                  style={{ padding: "6px 14px", border: `1px solid ${filter === k ? C.green : C.border}`, borderRadius: 6, background: filter === k ? `${C.green}15` : "transparent", color: filter === k ? C.green : C.dim, fontSize: 11, fontFamily: "inherit", fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        {/* Users Table */}
+        <Card>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontFamily: "'Chakra Petch'", fontSize: 15, fontWeight: 600, color: C.bright }}>
+              Registered Users ({filteredUsers.length})
+            </h3>
+          </div>
+
+          {loadingUsers ? (
+            <div style={{ textAlign: "center", padding: 40, color: C.dim }}>
+              <div style={{ animation: "spin 1s linear infinite", display: "inline-block", marginBottom: 12 }}><I.Refresh s={24} /></div>
+              <div>Loading users...</div>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: C.dim }}>No users found.</div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <th style={{ textAlign: "left", padding: "10px 12px", color: C.dim, fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>User</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", color: C.dim, fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Plan</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", color: C.dim, fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Status</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", color: C.dim, fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Joined</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", color: C.dim, fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map(u => {
+                    const isCurrentAdmin = u.email?.toLowerCase() === adminEmail?.toLowerCase();
+                    const plan = u.subscription?.provider === "paypal" ? "PayPal" : u.subscription?.provider === "promo_code" ? "Promo" : u.subscription?.provider === "admin" ? "Granted" : "None";
+                    const planColor = u.subscription?.provider === "paypal" ? C.blue : u.subscription?.provider === "promo_code" ? C.purple : u.subscription?.provider === "admin" ? C.orange : C.dim;
+                    const statusActive = u.subscription?.status === "active";
+                    return (
+                      <tr key={u.uid} style={{ borderBottom: `1px solid ${C.border}08`, transition: "background 0.15s" }}
+                        onMouseOver={e => e.currentTarget.style.background = C.bgHover}
+                        onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${isCurrentAdmin ? C.orange : C.green}, ${isCurrentAdmin ? C.red : C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                              {(u.displayName || u.email || "?")[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ color: C.bright, fontWeight: 500 }}>{u.displayName || "—"} {isCurrentAdmin && <Badge color={C.orange}>ADMIN</Badge>}</div>
+                              <div style={{ color: C.dim, fontSize: 10 }}>{u.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <Badge color={planColor}>{plan}</Badge>
+                          {u.subscription?.amount > 0 && <span style={{ color: C.dim, fontSize: 10, marginLeft: 6 }}>${u.subscription.amount}/mo</span>}
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: "50%", background: statusActive ? C.green : C.red }} />
+                            <span style={{ color: statusActive ? C.green : C.red, fontSize: 11 }}>{statusActive ? "Active" : "Inactive"}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px 12px", color: C.dim, fontSize: 11 }}>
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button onClick={() => setSelectedUser(u)}
+                              style={{ padding: "4px 10px", border: `1px solid ${C.border}`, borderRadius: 4, background: "transparent", color: C.dim, fontSize: 10, fontFamily: "inherit", cursor: "pointer" }}>
+                              <I.Eye s={12} /> View
+                            </button>
+                            {!isCurrentAdmin && (
+                              <>
+                                <button onClick={() => handleToggleSubscription(u)} disabled={actionBusy}
+                                  style={{ padding: "4px 10px", border: `1px solid ${statusActive ? C.redBdr : C.greenBdr}`, borderRadius: 4, background: statusActive ? C.redDim : C.greenDim, color: statusActive ? C.red : C.green, fontSize: 10, fontFamily: "inherit", cursor: "pointer" }}>
+                                  {statusActive ? "Deactivate" : "Activate"}
+                                </button>
+                                <button onClick={() => setConfirmDelete(u)} disabled={actionBusy}
+                                  style={{ padding: "4px 10px", border: `1px solid ${C.redBdr}`, borderRadius: 4, background: "transparent", color: C.red, fontSize: 10, fontFamily: "inherit", cursor: "pointer" }}>
+                                  <I.Trash s={12} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* User Detail Modal */}
+      {selectedUser && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setSelectedUser(null)}>
+          <div style={{ width: 500, maxHeight: "80vh", overflow: "auto", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontFamily: "'Chakra Petch'", fontSize: 17, color: C.bright }}>User Details</h3>
+              <button onClick={() => setSelectedUser(null)} style={{ background: "none", border: "none", color: C.dim, cursor: "pointer" }}><I.X s={18} /></button>
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {[
+                ["Name", selectedUser.displayName || "—"],
+                ["Email", selectedUser.email || "—"],
+                ["UID", selectedUser.uid],
+                ["Joined", selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleString() : "—"],
+                ["Plan", selectedUser.subscription?.plan || "None"],
+                ["Provider", selectedUser.subscription?.provider || "—"],
+                ["Status", selectedUser.subscription?.status || "Inactive"],
+                ["Amount", selectedUser.subscription?.amount != null ? `$${selectedUser.subscription.amount}/mo` : "—"],
+                ["Promo Code", selectedUser.promoCode || selectedUser.subscription?.promoCode || "—"],
+                ["Subscription ID", selectedUser.subscription?.subscriptionId || "—"],
+                ["Subscribed At", selectedUser.subscription?.subscribedAt ? new Date(selectedUser.subscription.subscribedAt).toLocaleString() : "—"],
+                ["Accounts Tracked", (selectedUser.accounts?.length || 0).toString()],
+                ["Threats Tracked", (selectedUser.threats?.length || 0).toString()],
+                ["Monitors Active", (selectedUser.monitors?.length || 0).toString()],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: C.bg, borderRadius: 6 }}>
+                  <span style={{ color: C.dim, fontSize: 11 }}>{label}</span>
+                  <span style={{ color: C.bright, fontSize: 11, fontFamily: "'Fira Code'", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 10002, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setConfirmDelete(null)}>
+          <div style={{ width: 400, background: C.bgCard, border: `1px solid ${C.redBdr}`, borderRadius: 16, padding: 28 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: C.redDim, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                <I.Alert s={24} style={{ color: C.red }} />
+              </div>
+              <h3 style={{ fontFamily: "'Chakra Petch'", fontSize: 17, color: C.bright, margin: "0 0 8px" }}>Delete User?</h3>
+              <p style={{ color: C.dim, fontSize: 12, margin: "0 0 20px" }}>
+                This will permanently delete <strong style={{ color: C.bright }}>{confirmDelete.displayName || confirmDelete.email}</strong> and all their data. This cannot be undone.
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                <Btn onClick={() => setConfirmDelete(null)} color={C.dim}>Cancel</Btn>
+                <Btn onClick={() => handleDeleteUser(confirmDelete.uid)} color={C.red} disabled={actionBusy}>
+                  <I.Trash /> {actionBusy ? "Deleting..." : "Delete User"}
+                </Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id:"overview", label:"Overview", icon:<I.Shield /> },
   { id:"breach", label:"Breach Check", icon:<I.Database /> },
@@ -2361,6 +2730,7 @@ export default function App() {
   const [subscription, setSubscription] = useState(null);
   const [subLoaded, setSubLoaded] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
@@ -2506,7 +2876,18 @@ export default function App() {
   // Loading screen
   if (loading) return <LoadingScreen message="Loading AgentsLock..." />;
 
-  if (!user) return <AuthScreen onLogin={login} onSignup={signup} />;
+  // Wrap signup to capture promo subscription immediately (fixes race condition
+  // where onAuthStateChanged fires before Firestore write completes)
+  const handleSignup = async (email, name, pass, promoCode) => {
+    const r = await signup(email, name, pass, promoCode);
+    if (r.ok && r.subscription) {
+      setSubscription(r.subscription);
+      setSubLoaded(true);
+    }
+    return r;
+  };
+
+  if (!user) return <AuthScreen onLogin={login} onSignup={handleSignup} />;
 
   // Admin bypass — developer always gets full access (no PayPal required)
   const isAdmin = import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
@@ -2593,6 +2974,12 @@ export default function App() {
             <button key={k} onClick={()=>setLegalPage(k)} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", fontWeight:500, padding:0, textDecoration:"none", transition:"opacity 0.2s" }}
               onMouseOver={e=>e.currentTarget.style.opacity=0.7} onMouseOut={e=>e.currentTarget.style.opacity=1}>{label}</button>
           ))}
+          {isAdmin && (
+            <button onClick={()=>setShowAdmin(true)} style={{ background:"none", border:"none", color:C.orange, cursor:"pointer", fontSize:11, fontFamily:"inherit", fontWeight:600, padding:0, textDecoration:"none", transition:"opacity 0.2s", display:"flex", alignItems:"center", gap:4 }}
+              onMouseOver={e=>e.currentTarget.style.opacity=0.7} onMouseOut={e=>e.currentTarget.style.opacity=1}>
+              <I.Settings s={12} /> Admin Dashboard
+            </button>
+          )}
         </div>
         {/* Company details */}
         <div style={{ textAlign:"center", maxWidth:680, margin:"0 auto" }}>
@@ -2608,6 +2995,9 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Admin Dashboard overlay */}
+      {showAdmin && isAdmin && <AdminDashboard user={user} onClose={() => setShowAdmin(false)} />}
 
       {/* Legal overlay */}
       <LegalOverlay page={legalPage} onClose={(nextPage) => setLegalPage(nextPage || null)} />
