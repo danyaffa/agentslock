@@ -113,13 +113,27 @@ function useAuth() {
     const unsub = onAuth((u) => { setUser(u); setLoading(false); });
     return unsub;
   }, []);
+  const firebaseAuthError = (e) => {
+    const code = e.code || "";
+    const map = {
+      "auth/email-already-in-use": "This email is already registered. Try logging in instead.",
+      "auth/invalid-email": "Please enter a valid email address.",
+      "auth/weak-password": "Password is too weak. Use at least 6 characters.",
+      "auth/user-not-found": "No account found with this email.",
+      "auth/wrong-password": "Incorrect password. Please try again.",
+      "auth/too-many-requests": "Too many attempts. Please wait and try again.",
+      "auth/network-request-failed": "Network error. Check your connection and try again.",
+      "auth/invalid-credential": "Invalid email or password.",
+    };
+    return map[code] || e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)\.?/, "").trim() || "Something went wrong. Please try again.";
+  };
   const doLogin = async (email, pass) => {
     try { await logIn(email, pass); return { ok: true }; }
-    catch (e) { return { ok: false, err: e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() }; }
+    catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
   const doSignup = async (email, name, pass, promoCode) => {
     try { await signUp(email, pass, name, promoCode); return { ok: true }; }
-    catch (e) { return { ok: false, err: e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() }; }
+    catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
   const doLogout = async () => { await logOut(); };
   return { user, loading, login: doLogin, signup: doSignup, logout: doLogout };
