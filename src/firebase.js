@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -74,7 +74,7 @@ export async function signUp(email, password, displayName, promoCode) {
 
   // Initialize user document in Firestore
   await setDoc(doc(db, "users", cred.user.uid), userData);
-  return cred.user;
+  return { user: cred.user, subscription: userData.subscription || null };
 }
 
 export async function logIn(email, password) {
@@ -129,4 +129,29 @@ export async function loadSubscription(uid) {
     return snap.data().subscription || null;
   }
   return null;
+}
+
+// ─── Admin helpers ──────────────────────────────────────────────────────────
+export async function googleReauth() {
+  if (!auth) throw new Error("Firebase not configured");
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  const result = await signInWithPopup(auth, provider);
+  return result.user;
+}
+
+export async function getAllUsers() {
+  if (!db) return [];
+  const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+}
+
+export async function adminDeleteUser(uid) {
+  if (!db) return;
+  await deleteDoc(doc(db, "users", uid));
+}
+
+export async function adminUpdateUser(uid, data) {
+  if (!db) return;
+  await setDoc(doc(db, "users", uid), data, { merge: true });
 }
