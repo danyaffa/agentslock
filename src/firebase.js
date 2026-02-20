@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -132,14 +132,6 @@ export async function loadSubscription(uid) {
 }
 
 // ─── Admin helpers ──────────────────────────────────────────────────────────
-export async function googleReauth() {
-  if (!auth) throw new Error("Firebase not configured");
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" });
-  const result = await signInWithPopup(auth, provider);
-  return result.user;
-}
-
 export async function getAllUsers() {
   if (!db) return [];
   const snap = await getDocs(collection(db, "users"));
