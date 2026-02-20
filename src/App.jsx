@@ -105,6 +105,15 @@ const LS = {
   del: (k) => { try { localStorage.removeItem(`al_${k}`); } catch {} },
 };
 
+// ─── Download Report Helper ─────────────────────────────────────────────────
+const downloadReport = (name, content) => {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `agentslock-${name}-${new Date().toISOString().slice(0,10)}.txt`; a.click();
+  URL.revokeObjectURL(url);
+};
+const ReportBtn = ({ onClick }) => <Btn onClick={onClick} color={C.blue} style={{ fontSize: 10 }}><I.Download /> Download Report</Btn>;
+
 // ─── Firebase Auth Hook ──────────────────────────────────────────────────────
 function useAuth() {
   const [user, setUser] = useState(null);
@@ -778,9 +787,31 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
 
   const sevIcon = (sev) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green, safe: C.green, protected: C.green }[sev] || C.dim);
 
+  const exportOverview = () => {
+    const lines = [`AGENTSLOCK — SECURITY OVERVIEW REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `SECURITY SCORE: ${score}/100 (${doneChecks}/${totalChecks} tasks)`, `ACTIVE THREATS: ${activeThreats}`, `BLOCKED: ${threats.filter(t => t.status === "blocked").length}`, `MONITORS: ${monitors.length} (${onlineMonitors} online)`, `ACCOUNTS: ${accounts.length} (${highRisk} high risk)`, `SCANS: ${scanLog.length} total`, ``];
+    if (findings) {
+      lines.push(`DEVICE SCAN FINDINGS:`, `-`.repeat(30));
+      findings.forEach(f => lines.push(`  [${f.sev?.toUpperCase()}] ${f.name} — ${f.desc || ""}`));
+      lines.push(``);
+    }
+    if (threats.length > 0) {
+      lines.push(`RECENT THREATS:`, `-`.repeat(30));
+      threats.slice(0, 8).forEach(t => lines.push(`  [${t.status.toUpperCase()}] ${t.name} — ${t.target}`));
+      lines.push(``);
+    }
+    if (scanLog.length > 0) {
+      lines.push(`SCAN HISTORY:`, `-`.repeat(30));
+      scanLog.slice(-10).forEach(s => lines.push(`  ${new Date(s.time).toLocaleString()} — ${s.type}: ${s.target} (${s.safe ? "Safe" : "Risk"})`));
+    }
+    downloadReport("overview", lines.join("\n"));
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {userName && <div style={{ fontSize: 13, color: C.dim }}>Welcome back, <span style={{ color: C.green, fontWeight: 600 }}>{userName}</span></div>}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {userName && <div style={{ fontSize: 13, color: C.dim }}>Welcome back, <span style={{ color: C.green, fontWeight: 600 }}>{userName}</span></div>}
+        <ReportBtn onClick={exportOverview} />
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
         <Card glow={score >= 80 ? C.green : score >= 50 ? C.orange : C.red}>
@@ -1079,8 +1110,26 @@ function BreachTab({ addLog }) {
     setLoading("");
   };
 
+  const exportBreach = () => {
+    const lines = [`AGENTSLOCK — BREACH CHECK REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``];
+    if (emailRes) {
+      lines.push(`EMAIL BREACH CHECK: ${email}`);
+      if (emailRes.needsKey) lines.push(`  Result: API key required`);
+      else if (emailRes.safe) lines.push(`  Result: No breaches found`);
+      else { lines.push(`  Result: Found in ${emailRes.breaches.length} breach(es)`); emailRes.breaches.forEach(b => lines.push(`    - ${b.Name} (${b.BreachDate})`)); }
+    } else { lines.push(`EMAIL: Not checked yet`); }
+    lines.push(``);
+    if (pwRes) {
+      lines.push(`PASSWORD BREACH CHECK:`);
+      if (pwRes.error) lines.push(`  Result: Error occurred`);
+      else if (pwRes.safe) lines.push(`  Result: Not found in breaches`);
+      else lines.push(`  Result: Found ${pwRes.count.toLocaleString()} times in breaches — CHANGE IMMEDIATELY`);
+    } else { lines.push(`PASSWORD: Not checked yet`); }
+    downloadReport("breach-check", lines.join("\n"));
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportBreach} /></div>
       <Card glow={C.blue}>
         <Sect title="Email Breach Check" icon={<I.Mail />}>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -1134,8 +1183,20 @@ function PasswordTab() {
   const doGen = () => { setGenerated(genPassword(genLen, genOpts)); setCopied(false); };
   const doCopy = () => { navigator.clipboard.writeText(generated); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   useEffect(() => { doGen(); }, []);
+  const exportPw = () => {
+    const lines = [`AGENTSLOCK — PASSWORD ANALYSIS REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``];
+    if (pw) {
+      lines.push(`PASSWORD STRENGTH ANALYSIS:`, `  Strength: ${str.label}`, `  Score: ${str.score}/100`, `  Entropy: ${str.entropy} bits`, `  Crack Time: ${str.crack}`, `  Length: ${pw.length} characters`);
+      if (str.issues.length > 0) { lines.push(`  Issues:`); str.issues.forEach(i => lines.push(`    - ${i}`)); }
+    } else { lines.push(`No password analyzed.`); }
+    lines.push(``, `GENERATOR SETTINGS:`, `  Length: ${genLen}`, `  Uppercase: ${genOpts.upper ? "Yes" : "No"}`, `  Lowercase: ${genOpts.lower ? "Yes" : "No"}`, `  Numbers: ${genOpts.nums ? "Yes" : "No"}`, `  Symbols: ${genOpts.syms ? "Yes" : "No"}`);
+    if (generated) { const gs = calcPwStrength(generated); lines.push(``, `GENERATED PASSWORD STRENGTH:`, `  Strength: ${gs.label}`, `  Entropy: ${gs.entropy} bits`, `  Crack Time: ${gs.crack}`); }
+    downloadReport("password-analysis", lines.join("\n"));
+  };
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+    <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}><ReportBtn onClick={exportPw} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
       <Card glow={pw ? str.color : undefined}>
         <Sect title="Password Strength Analyzer" icon={<I.Shield />}>
           <div style={{ position: "relative", marginBottom: 16 }}>
@@ -1164,6 +1225,7 @@ function PasswordTab() {
           {generated && (()=>{ const g=calcPwStrength(generated); return <div style={{ marginTop:12, padding:"8px 12px", background:C.bg, borderRadius:6 }}><Progress value={g.score} color={g.color}/><div style={{ fontSize:11, color:g.color, fontWeight:600, marginTop:4 }}>{g.label} — {g.crack}</div></div>; })()}
         </Sect>
       </Card>
+    </div>
     </div>
   );
 }
@@ -1195,11 +1257,17 @@ function ScannerTab({ addLog }) {
     } catch (e) { setResult({ error: e.message }); }
     setScanning(false);
   };
+  const exportScan = () => {
+    if (!result || result.error) return;
+    const lines = [`AGENTSLOCK — WEB SCANNER REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `URL: ${result.url}`, `HOSTNAME: ${result.hostname}`, `SSL/TLS GRADE: ${result.sslGrade}`, `SCANNED: ${result.time?.toLocaleString()}`, ``, `SECURITY HEADERS ANALYSIS:`, `-`.repeat(30)];
+    SEC_HEADERS.forEach(h => lines.push(`[${h.sev.toUpperCase()}] ${h.name}`, `  ${h.desc}`, `  Recommended: ${h.rec}`, ``));
+    downloadReport("web-scan", lines.join("\n"));
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Card><Sect title="Website Security Scanner" icon={<I.Globe />}>
         <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>SSL/TLS grade, security headers analysis, and recommendations.</div>
-        <div style={{ display: "flex", gap: 8 }}><Input value={url} onChange={setUrl} placeholder="example.com" icon={<I.Search />} style={{ flex: 1 }} /><Btn onClick={scan} disabled={scanning}>{scanning ? "Scanning..." : "Scan"}</Btn></div>
+        <div style={{ display: "flex", gap: 8 }}><Input value={url} onChange={setUrl} placeholder="example.com" icon={<I.Search />} style={{ flex: 1 }} /><Btn onClick={scan} disabled={scanning}>{scanning ? "Scanning..." : "Scan"}</Btn>{result && !result.error && <ReportBtn onClick={exportScan} />}</div>
       </Sect></Card>
       {result && !result.error && (<>
         <Card glow={C.green}><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -1311,8 +1379,19 @@ const DEFAULT_CHECKS = Object.values(DEVICE_CHECKS).flat().reduce((acc, c) => ({
 function DeviceTab({ checks, setChecks }) {
   const [active, setActive] = useState("windows");
   const items = DEVICE_CHECKS[active]; const done = items.filter(c => checks[c.id]).length; const pct = Math.round((done / items.length) * 100);
+  const exportDevice = () => {
+    const lines = [`AGENTSLOCK — DEVICE HARDENING REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``];
+    Object.entries(DEVICE_CHECKS).forEach(([platform, checks_list]) => {
+      const d = checks_list.filter(c => checks[c.id]).length, t = checks_list.length;
+      lines.push(`${DEVICE_META[platform]?.name || platform}: ${d}/${t} (${Math.round((d/t)*100)}%)`, `-`.repeat(30));
+      checks_list.forEach(c => lines.push(`  ${checks[c.id] ? "[x]" : "[ ]"} [${c.sev}] ${c.text}`));
+      lines.push("");
+    });
+    downloadReport("device-hardening", lines.join("\n"));
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportDevice} /></div>
       <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
         {Object.entries(DEVICE_META).map(([k, m]) => { const d = DEVICE_CHECKS[k].filter(c => checks[c.id]).length, t = DEVICE_CHECKS[k].length; return (
           <Card key={k} onClick={() => setActive(k)} style={{ minWidth: 120, padding: 14, textAlign: "center", borderColor: active === k ? C.green : C.border, background: active === k ? `${C.green}08` : C.bgCard }}>
@@ -1351,8 +1430,15 @@ function DeviceTab({ checks, setChecks }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function AccountTab({ accounts, setAccounts }) {
   const toggle = (id, f) => { const n = accounts.map(a => a.id===id?{...a,[f]:!a[f]}:a); setAccounts(n); };
+  const exportAccounts = () => {
+    const twoFA = accounts.filter(a=>a.twoFA).length;
+    const lines = [`AGENTSLOCK — ACCOUNT SECURITY AUDIT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `TOTAL ACCOUNTS: ${accounts.length}`, `2FA ENABLED: ${twoFA}/${accounts.length} (${Math.round((twoFA/accounts.length)*100)}%)`, `HIGH RISK: ${accounts.filter(a=>a.risk==="high").length}`, ``];
+    accounts.forEach(a => lines.push(`${a.name}`, `  2FA: ${a.twoFA ? "ON (" + a.method + ")" : "OFF"}`, `  App Password: ${a.appPw ? "Yes" : "No"}`, `  Sessions: ${a.sessions}`, `  Risk: ${a.risk.toUpperCase()}`, `  Last Review: ${a.lastReview}`, ``));
+    downloadReport("accounts", lines.join("\n"));
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportAccounts} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <Stat label="Total" value={accounts.length} color={C.bright} />
         <Stat label="2FA On" value={accounts.filter(a=>a.twoFA).length} color={C.green} sub={`${accounts.filter(a=>!a.twoFA).length} without`} />
@@ -1383,8 +1469,14 @@ function AccountTab({ accounts, setAccounts }) {
 function ThreatTab({ threats, setThreats }) {
   const [filter, setFilter] = useState("all");
   const filtered = filter === "all" ? threats : threats.filter(t => t.status === filter);
+  const exportThreats = () => {
+    const lines = [`AGENTSLOCK — THREAT REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `ACTIVE: ${threats.filter(t=>t.status==="active").length}`, `BLOCKED: ${threats.filter(t=>t.status==="blocked").length}`, `INVESTIGATING: ${threats.filter(t=>t.status==="investigating").length}`, `RESOLVED: ${threats.filter(t=>t.status==="resolved").length}`, ``];
+    threats.forEach(t => lines.push(`[${t.status.toUpperCase()}] ${t.name}`, `  Severity: ${t.severity}`, `  Target: ${t.target}`, `  Time: ${t.time}`, `  ${t.desc || ""}`, ``));
+    downloadReport("threats", lines.join("\n"));
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportThreats} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
         <Stat label="Active" value={threats.filter(t=>t.status==="active").length} color={C.red} />
         <Stat label="Blocked" value={threats.filter(t=>t.status==="blocked").length} color={C.green} />
@@ -1453,9 +1545,17 @@ function MonitorTab({ monitors, setMonitors }) {
 
   const upCount = monitors.filter(m => m.status === "up").length;
   const upPct = monitors.length > 0 ? Math.round((upCount / monitors.length) * 100) : 100;
+  const exportMonitors = () => {
+    const lines = [`AGENTSLOCK — UPTIME MONITORING REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `SITES MONITORED: ${monitors.length}`, `ONLINE: ${upCount} (${upPct}% uptime)`, `DOWN: ${monitors.filter(m => m.status === "down").length}`, ``];
+    monitors.forEach(m => {
+      lines.push(`${m.status === "up" ? "[UP]  " : m.status === "down" ? "[DOWN]" : "[...]"} ${m.name}`, `  URL: ${m.url}`, `  Response: ${m.responseTime ? m.responseTime + "ms" : "—"}`, `  Last Check: ${m.lastCheck ? new Date(m.lastCheck).toLocaleString() : "Never"}`, `  Checks: ${m.checks?.length || 0} recorded`, ``);
+    });
+    downloadReport("monitoring", lines.join("\n"));
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportMonitors} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <Stat label="Sites Monitored" value={monitors.length} color={C.bright} />
         <Stat label="Online" value={upCount} color={C.green} sub={`${upPct}% uptime`} />
@@ -1518,11 +1618,8 @@ function ReportTab({ checks, threats, accounts, monitors, scanLog }) {
   const upMonitors = monitors.filter(m => m.status === "up").length;
 
   const exportReport = () => {
-    const report = `AGENTSLOCK SECURITY REPORT\nGenerated: ${new Date().toISOString()}\n${"=".repeat(50)}\n\nSECURITY SCORE: ${score}/100\n\nHARDENING: ${doneChecks}/${totalChecks} complete\n  Critical: ${critDone}/${critChecks.length}\n\nACCOUNTS: ${accounts.length} total\n  2FA Enabled: ${twoFACount}/${accounts.length}\n  High Risk: ${highRisk}\n\nTHREATS:\n  Active: ${threats.filter(t=>t.status==="active").length}\n  Blocked: ${threats.filter(t=>t.status==="blocked").length}\n  Resolved: ${threats.filter(t=>t.status==="resolved").length}\n\nMONITORS: ${monitors.length} sites\n  Online: ${upMonitors}\n\nSCAN HISTORY: ${scanLog.length} total scans\n\n${"=".repeat(50)}\nINCOMPLETE CRITICAL TASKS:\n${critChecks.filter(c=>!checks[c.id]).map(c=>`  ❌ ${c.text}`).join("\n")}\n\nHIGH RISK ACCOUNTS:\n${accounts.filter(a=>a.risk==="high").map(a=>`  ⚠️ ${a.name} - ${a.twoFA?"2FA on":"NO 2FA"}`).join("\n")}\n`;
-    const blob = new Blob([report], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `agentslock-report-${new Date().toISOString().slice(0,10)}.txt`; a.click();
-    URL.revokeObjectURL(url);
+    const report = `AGENTSLOCK — FULL SECURITY REPORT\nGenerated: ${new Date().toISOString()}\n${"=".repeat(50)}\n\nSECURITY SCORE: ${score}/100\n\nHARDENING: ${doneChecks}/${totalChecks} complete\n  Critical: ${critDone}/${critChecks.length}\n\nACCOUNTS: ${accounts.length} total\n  2FA Enabled: ${twoFACount}/${accounts.length}\n  High Risk: ${highRisk}\n\nTHREATS:\n  Active: ${threats.filter(t=>t.status==="active").length}\n  Blocked: ${threats.filter(t=>t.status==="blocked").length}\n  Resolved: ${threats.filter(t=>t.status==="resolved").length}\n\nMONITORS: ${monitors.length} sites\n  Online: ${upMonitors}\n\nSCAN HISTORY: ${scanLog.length} total scans\n\n${"=".repeat(50)}\nINCOMPLETE CRITICAL TASKS:\n${critChecks.filter(c=>!checks[c.id]).map(c=>`  [ ] ${c.text}`).join("\n")}\n\nHIGH RISK ACCOUNTS:\n${accounts.filter(a=>a.risk==="high").map(a=>`  [!] ${a.name} - ${a.twoFA?"2FA on":"NO 2FA"}`).join("\n")}\n`;
+    downloadReport("full-report", report);
   };
 
   return (
@@ -1606,6 +1703,16 @@ function IncidentTab() {
   const [irChecks, setIrChecks] = useState(() => LS.get("irChecks", {}));
   const toggleIr = (key) => { const n = { ...irChecks, [key]: !irChecks[key] }; setIrChecks(n); LS.set("irChecks", n); };
   const done = IR_STEPS.filter(s => s.actions.every((_, i) => irChecks[`${s.id}-${i}`])).length;
+  const exportIR = () => {
+    const lines = [`AGENTSLOCK — INCIDENT RESPONSE REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `STATUS: ${active ? "ACTIVE" : "INACTIVE"}`, `PROGRESS: ${done}/${IR_STEPS.length} steps completed`, ``];
+    IR_STEPS.forEach(s => {
+      const stepDone = s.actions.every((_, i) => irChecks[`${s.id}-${i}`]);
+      lines.push(`${stepDone ? "[DONE]" : "[    ]"} ${s.title}`, `  ${s.desc}`);
+      s.actions.forEach((a, i) => lines.push(`    ${irChecks[`${s.id}-${i}`] ? "[x]" : "[ ]"} ${a}`));
+      lines.push("");
+    });
+    downloadReport("incident-response", lines.join("\n"));
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Card glow={active ? C.red : undefined} style={active ? { background: `${C.red}08`, borderColor: C.redBdr } : {}}>
@@ -1614,7 +1721,10 @@ function IncidentTab() {
             <div style={{ fontFamily: "'Chakra Petch'", fontSize: 18, fontWeight: 700, color: active ? C.red : C.bright }}>{active ? "🚨 INCIDENT MODE ACTIVE" : "Incident Response Protocol"}</div>
             <div style={{ color: C.dim, fontSize: 12, marginTop: 4 }}>{active ? `${done}/${IR_STEPS.length} steps done` : "Activate if compromise suspected."}</div>
           </div>
-          <Btn onClick={() => setActive(!active)} color={active ? C.red : C.orange}>{active ? "Deactivate" : "Activate"}</Btn>
+          <div style={{ display: "flex", gap: 8 }}>
+            <ReportBtn onClick={exportIR} />
+            <Btn onClick={() => setActive(!active)} color={active ? C.red : C.orange}>{active ? "Deactivate" : "Activate"}</Btn>
+          </div>
         </div>
       </Card>
       {active && IR_STEPS.map((step, si) => {
