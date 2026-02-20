@@ -2441,6 +2441,127 @@ const INIT_ACCOUNTS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// INSTALL ON ALL DEVICES — Share & Install Modal
+// ═══════════════════════════════════════════════════════════════════════════════
+function InstallAllDevices({ onClose, installPrompt, setInstallPrompt }) {
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+  const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(appUrl);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shareLink = async () => {
+    try {
+      await navigator.share({ title: "AgentsLock — Cybersecurity Dashboard", text: "Install AgentsLock on your device to protect your accounts, passwords, and data.", url: appUrl });
+      setShared(true); setTimeout(() => setShared(false), 2000);
+    } catch (e) {
+      if (e.name !== "AbortError") copyLink();
+    }
+  };
+
+  const emailLink = () => {
+    const subject = encodeURIComponent("Install AgentsLock on Your Device");
+    const body = encodeURIComponent(`Install AgentsLock — your personal cybersecurity dashboard.\n\nOpen this link on any device:\n${appUrl}\n\nHow to install:\n• Android: Open in Chrome → Menu (⋮) → "Install app"\n• iPhone/iPad: Open in Safari → Share (↑) → "Add to Home Screen"\n• Windows/Mac: Open in Chrome/Edge → Click install icon in address bar\n\nIt works on all devices — phones, tablets, laptops, and desktops.`);
+    window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
+  };
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === "accepted") setInstallPrompt(null);
+  };
+
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+
+  const devices = [
+    { icon: <I.Smartphone s={20} />, name: "Android", color: C.green, steps: ["Open link in Chrome", "Tap ⋮ menu → \"Install app\"", "Tap Install"] },
+    { icon: <I.Apple s={20} />, name: "iPhone / iPad", color: C.bright, steps: ["Open link in Safari", "Tap Share ↑ button", "\"Add to Home Screen\""] },
+    { icon: <I.Monitor s={20} />, name: "Windows", color: C.blue, steps: ["Open link in Chrome/Edge", "Click ⊕ in address bar", "Click Install"] },
+    { icon: <I.Apple s={20} />, name: "macOS", color: C.bright, steps: ["Open link in Chrome/Edge", "Click install icon in bar", "Click Install"] },
+    { icon: <I.Terminal s={20} />, name: "Linux", color: C.orange, steps: ["Open link in Chrome", "Click install icon in bar", "Confirm installation"] },
+  ];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif" }}
+      onClick={onClose}>
+      <div style={{ width: 520, maxHeight: "90vh", overflow: "auto", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32 }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+            <I.Download s={28} style={{ color: "#fff" }} />
+          </div>
+          <h2 style={{ fontFamily: "'Chakra Petch'", fontSize: 20, color: C.bright, margin: "0 0 6px" }}>Install on All Devices</h2>
+          <p style={{ color: C.dim, fontSize: 12, margin: 0 }}>Share this link to install AgentsLock on any phone, tablet, or computer.</p>
+        </div>
+
+        {/* App URL + Copy */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1, padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, fontFamily: "'Fira Code', monospace", fontSize: 13, color: C.green, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{appUrl}</div>
+          <Btn onClick={copyLink} color={copied ? C.green : C.blue}><I.Copy /> {copied ? "Copied!" : "Copy"}</Btn>
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+          {navigator.share && (
+            <button onClick={shareLink} style={{ padding: "14px 10px", background: `${C.green}12`, border: `1px solid ${C.greenBdr}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}>
+              <I.ExternalLink s={20} style={{ color: C.green, display: "block", margin: "0 auto 6px" }} />
+              <div style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>{shared ? "Shared!" : "Share"}</div>
+              <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>Via apps</div>
+            </button>
+          )}
+          <button onClick={emailLink} style={{ padding: "14px 10px", background: `${C.blue}12`, border: `1px solid ${C.blueBdr}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}>
+            <I.Mail s={20} style={{ color: C.blue, display: "block", margin: "0 auto 6px" }} />
+            <div style={{ color: C.blue, fontSize: 12, fontWeight: 600 }}>Email</div>
+            <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>Send link</div>
+          </button>
+          {installPrompt && (
+            <button onClick={handleInstall} style={{ padding: "14px 10px", background: `${C.cyan}12`, border: `1px solid ${C.cyanBdr}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}>
+              <I.Download s={20} style={{ color: C.cyan, display: "block", margin: "0 auto 6px" }} />
+              <div style={{ color: C.cyan, fontSize: 12, fontWeight: 600 }}>Install Now</div>
+              <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>This device</div>
+            </button>
+          )}
+        </div>
+
+        {isStandalone && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: C.greenDim, border: `1px solid ${C.greenBdr}`, borderRadius: 8, marginBottom: 16 }}>
+            <I.Check s={16} style={{ color: C.green }} />
+            <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>App installed on this device</span>
+          </div>
+        )}
+
+        {/* Per-Device Instructions */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, fontWeight: 500 }}>Quick Install per Device</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {devices.map((d, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: C.bg, borderRadius: 8 }}>
+                <div style={{ color: d.color, flexShrink: 0 }}>{d.icon}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.bright, fontSize: 12, fontWeight: 600 }}>{d.name}</div>
+                  <div style={{ color: C.dim, fontSize: 10 }}>{d.steps.join(" → ")}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button onClick={onClose}
+          style={{ width: "100%", padding: "10px 20px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: C.dim }}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD — Management Panel (Google 2FA Protected)
 // ═══════════════════════════════════════════════════════════════════════════════
 function AdminDashboard({ user, onClose }) {
@@ -2495,8 +2616,10 @@ function AdminDashboard({ user, onClose }) {
     setLoadingUsers(false);
   };
 
+  const [deleteError, setDeleteError] = useState("");
   const handleDeleteUser = async (uid) => {
     setActionBusy(true);
+    setDeleteError("");
     try {
       await adminDeleteUser(uid);
       setUsers(prev => prev.filter(u => u.uid !== uid));
@@ -2504,6 +2627,7 @@ function AdminDashboard({ user, onClose }) {
       setSelectedUser(null);
     } catch (e) {
       console.error("Delete failed:", e);
+      setDeleteError(e.message || "Failed to delete user");
     }
     setActionBusy(false);
   };
@@ -2809,8 +2933,11 @@ function AdminDashboard({ user, onClose }) {
               <p style={{ color: C.dim, fontSize: 12, margin: "0 0 20px" }}>
                 This will permanently delete <strong style={{ color: C.bright }}>{confirmDelete.displayName || confirmDelete.email}</strong> and all their data. This cannot be undone.
               </p>
+              {deleteError && (
+                <div style={{ padding: "10px 14px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 8, color: C.red, fontSize: 11, marginBottom: 12, textAlign: "left" }}>{deleteError}</div>
+              )}
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <Btn onClick={() => setConfirmDelete(null)} color={C.dim}>Cancel</Btn>
+                <Btn onClick={() => { setConfirmDelete(null); setDeleteError(""); }} color={C.dim}>Cancel</Btn>
                 <Btn onClick={() => handleDeleteUser(confirmDelete.uid)} color={C.red} disabled={actionBusy}>
                   <I.Trash /> {actionBusy ? "Deleting..." : "Delete User"}
                 </Btn>
@@ -2857,6 +2984,7 @@ export default function App() {
   const [subLoaded, setSubLoaded] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showInstallAll, setShowInstallAll] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
@@ -3054,17 +3182,11 @@ export default function App() {
               <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:11, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
             </div>
           )}
-          {window.matchMedia("(display-mode: standalone)").matches ? (
-            <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`${C.green}15`, border:`1px solid ${C.greenBdr}`, borderRadius:6, fontSize:11, fontWeight:600, color:C.green }}>
-              <I.Check s={14}/> App Installed
-            </div>
-          ) : (
-            <button onClick={async () => { if (installPrompt) { installPrompt.prompt(); const r = await installPrompt.userChoice; if (r.outcome === "accepted") setInstallPrompt(null); } else { setTab("help"); } }}
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff", transition:"opacity 0.2s" }}
-              onMouseOver={e=>e.currentTarget.style.opacity=0.85} onMouseOut={e=>e.currentTarget.style.opacity=1}>
-              <I.Download s={14}/> Install App
-            </button>
-          )}
+          <button onClick={() => setShowInstallAll(true)}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff", transition:"opacity 0.2s" }}
+            onMouseOver={e=>e.currentTarget.style.opacity=0.85} onMouseOut={e=>e.currentTarget.style.opacity=1}>
+            <I.Download s={14}/> Install App
+          </button>
           <div style={{ display:"flex", alignItems:"center", gap:6, color:C.dim, fontSize:11 }}><I.User s={14}/>{userName}</div>
         </div>
       </header>
@@ -3121,6 +3243,9 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Install on All Devices overlay */}
+      {showInstallAll && <InstallAllDevices onClose={() => setShowInstallAll(false)} installPrompt={installPrompt} setInstallPrompt={setInstallPrompt} />}
 
       {/* Admin Dashboard overlay */}
       {showAdmin && isAdmin && <AdminDashboard user={user} onClose={() => setShowAdmin(false)} />}
