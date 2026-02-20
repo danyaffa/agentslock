@@ -2616,8 +2616,10 @@ function AdminDashboard({ user, onClose }) {
     setLoadingUsers(false);
   };
 
+  const [deleteError, setDeleteError] = useState("");
   const handleDeleteUser = async (uid) => {
     setActionBusy(true);
+    setDeleteError("");
     try {
       await adminDeleteUser(uid);
       setUsers(prev => prev.filter(u => u.uid !== uid));
@@ -2625,6 +2627,7 @@ function AdminDashboard({ user, onClose }) {
       setSelectedUser(null);
     } catch (e) {
       console.error("Delete failed:", e);
+      setDeleteError(e.message || "Failed to delete user");
     }
     setActionBusy(false);
   };
@@ -2930,8 +2933,11 @@ function AdminDashboard({ user, onClose }) {
               <p style={{ color: C.dim, fontSize: 12, margin: "0 0 20px" }}>
                 This will permanently delete <strong style={{ color: C.bright }}>{confirmDelete.displayName || confirmDelete.email}</strong> and all their data. This cannot be undone.
               </p>
+              {deleteError && (
+                <div style={{ padding: "10px 14px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 8, color: C.red, fontSize: 11, marginBottom: 12, textAlign: "left" }}>{deleteError}</div>
+              )}
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <Btn onClick={() => setConfirmDelete(null)} color={C.dim}>Cancel</Btn>
+                <Btn onClick={() => { setConfirmDelete(null); setDeleteError(""); }} color={C.dim}>Cancel</Btn>
                 <Btn onClick={() => handleDeleteUser(confirmDelete.uid)} color={C.red} disabled={actionBusy}>
                   <I.Trash /> {actionBusy ? "Deleting..." : "Delete User"}
                 </Btn>

@@ -139,8 +139,21 @@ export async function getAllUsers() {
 }
 
 export async function adminDeleteUser(uid) {
-  if (!db) return;
-  await deleteDoc(doc(db, "users", uid));
+  if (!auth) throw new Error("Firebase not configured");
+
+  // Get the current user's ID token for authorization
+  const token = await auth.currentUser.getIdToken();
+
+  // Call the Vercel API route to delete from both Auth + Firestore
+  const res = await fetch("/api/admin-delete-user", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ uid }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to delete user");
+  return data;
 }
 
 export async function adminUpdateUser(uid, data) {
