@@ -3007,7 +3007,7 @@ export default function App() {
   // Load user data from Firestore on login
   useEffect(() => {
     if (!user) { setDataLoaded(false); return; }
-    loadUserData(user.uid).then(data => {
+    loadUserData(user.uid).then(async (data) => {
       if (data) {
         if (data.checks && Object.keys(data.checks).length) setChecks({ ...DEFAULT_CHECKS, ...data.checks });
         if (data.threats?.length) setThreats(data.threats);
@@ -3015,6 +3015,13 @@ export default function App() {
         if (data.monitors?.length) setMonitors(data.monitors);
         if (data.scanLog?.length) setScanLog(data.scanLog);
         if (data.deviceCleaned && Object.keys(data.deviceCleaned).length) setDeviceCleaned(data.deviceCleaned);
+      } else {
+        // Firestore document missing (e.g. deleted by admin) — recreate it
+        try {
+          await saveUserData(user.uid, "email", user.email);
+          await saveUserData(user.uid, "displayName", user.displayName || "");
+          await saveUserData(user.uid, "createdAt", Date.now());
+        } catch (e) { console.error("Failed to recreate user doc:", e); }
       }
       setDataLoaded(true);
     }).catch(() => setDataLoaded(true));
