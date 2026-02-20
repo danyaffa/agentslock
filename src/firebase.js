@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -86,6 +86,29 @@ export async function logIn(email, password) {
 export async function logOut() {
   if (!auth) return;
   await signOut(auth);
+}
+
+export async function signInWithGoogle() {
+  if (!auth) throw new Error("Firebase not configured");
+  const provider = new GoogleAuthProvider();
+  const cred = await signInWithPopup(auth, provider);
+  // Initialize Firestore doc for new Google users
+  const snap = await getDoc(doc(db, "users", cred.user.uid));
+  if (!snap.exists()) {
+    await setDoc(doc(db, "users", cred.user.uid), {
+      email: cred.user.email,
+      displayName: cred.user.displayName || cred.user.email.split("@")[0],
+      createdAt: Date.now(),
+      checks: {},
+      accounts: [],
+      threats: [],
+      monitors: [],
+      scanLog: [],
+      irChecks: {},
+      settings: { notifs: true, autoScan: false },
+    });
+  }
+  return cred.user;
 }
 
 export function onAuth(callback) {
