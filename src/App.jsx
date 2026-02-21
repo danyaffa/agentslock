@@ -1148,16 +1148,16 @@ function OverviewTab({ checks, setChecks, threats, setThreats, accounts, setAcco
                     <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>All threats blocked — you're protected</span>
                   </div>
                 )}
-                {threats.slice(0, 4).map(t => (
-                  <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: t.status === "blocked" ? `${C.green}06` : t.status === "active" ? `${C.red}06` : C.bg, borderRadius: 8, border: `1px solid ${t.status === "blocked" ? C.greenBdr : t.status === "active" ? C.redBdr : C.border}` }}>
+                {threats.slice(0, 4).map(t => { const s = t.status === "blocked" || t.status === "resolved"; return (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: s ? `${C.green}06` : t.status === "active" ? `${C.red}06` : C.bg, borderRadius: 8, border: `1px solid ${s ? C.greenBdr : t.status === "active" ? C.redBdr : C.border}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      {t.status === "blocked" ? <I.Check s={12} style={{ color: C.green }} /> : t.status === "active" ? <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.red, animation: "pulse 2s infinite" }} /> : <div style={{ width: 7, height: 7, borderRadius: "50%", background: sevColor(t.severity) }} />}
-                      <span style={{ color: t.status === "blocked" ? C.green : C.bright, fontWeight: 600, fontSize: 12 }}>{t.name}</span>
+                      {s ? <I.Check s={12} style={{ color: C.green }} /> : t.status === "active" ? <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.red, animation: "pulse 2s infinite" }} /> : <div style={{ width: 7, height: 7, borderRadius: "50%", background: sevColor(t.severity) }} />}
+                      <span style={{ color: s ? C.green : C.bright, fontWeight: 600, fontSize: 12 }}>{t.name}</span>
                       <span style={{ color: C.dim, fontSize: 11 }}>{"\u2192"} {t.target}</span>
                     </div>
-                    <Badge color={t.status === "active" ? C.red : t.status === "blocked" ? C.green : C.orange}>{t.status}</Badge>
+                    <Badge color={t.status === "active" ? C.red : s ? C.green : C.orange}>{t.status}</Badge>
                   </div>
-                ))}
+                ); })}
               </div>
             )}
           </Sect>
@@ -1700,25 +1700,27 @@ function ThreatTab({ threats, setThreats, accounts, setAccounts, checks, setChec
           </div>
         </Card>
       )}
-      {filtered.length===0 ? <Card><div style={{ textAlign:"center", padding:30, color:C.dim }}>{filter === "active" ? "No active threats — you're protected" : "Empty"}</div></Card> : filtered.map(t => (
-        <Card key={t.id} glow={t.status==="active"?C.red:t.status==="blocked"?C.green:undefined}>
+      {filtered.length===0 ? <Card><div style={{ textAlign:"center", padding:30, color:C.dim }}>{filter === "active" ? "No active threats — you're protected" : "Empty"}</div></Card> : filtered.map(t => {
+        const safe = t.status === "blocked" || t.status === "resolved";
+        return (
+        <Card key={t.id} glow={t.status==="active"?C.red:safe?C.green:undefined}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                {t.status === "blocked" ? <I.Check s={14} style={{ color: C.green }} /> : <div style={{ width:8, height:8, borderRadius:"50%", background: t.status === "active" ? C.red : sevColor(t.severity), animation: t.status === "active" ? "pulse 2s infinite" : "none" }}/>}
-                <span style={{ color: t.status === "blocked" ? C.green : C.bright, fontWeight:700, fontSize:14 }}>{t.name}</span>
-                <Badge color={sevColor(t.severity)}>{t.severity}</Badge>
+                {safe ? <I.Check s={14} style={{ color: C.green }} /> : <div style={{ width:8, height:8, borderRadius:"50%", background: t.status === "active" ? C.red : sevColor(t.severity), animation: t.status === "active" ? "pulse 2s infinite" : "none" }}/>}
+                <span style={{ color: safe ? C.green : C.bright, fontWeight:700, fontSize:14 }}>{t.name}</span>
+                <Badge color={safe ? C.green : sevColor(t.severity)}>{safe ? "secured" : t.severity}</Badge>
               </div>
               <div style={{ color:C.dim, fontSize:12 }}>Target: {t.target} · {t.time}</div>
-              {t.desc && <div style={{ color: t.status === "blocked" ? `${C.green}cc` : C.text, fontSize:12, marginTop:6 }}>{t.status === "blocked" ? "Blocked — " : ""}{t.desc}</div>}
+              {t.desc && <div style={{ color: safe ? `${C.green}cc` : C.text, fontSize:12, marginTop:6 }}>{safe ? (t.status === "blocked" ? "Blocked — " : "Resolved — ") : ""}{t.desc}</div>}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <Badge color={t.status==="active"?C.red:t.status==="blocked"?C.green:t.status==="investigating"?C.orange:C.blue}>{t.status}</Badge>
+              <Badge color={t.status==="active"?C.red:safe?C.green:t.status==="investigating"?C.orange:C.blue}>{t.status}</Badge>
               {t.status==="active" && <Btn onClick={()=>{const n=threats.map(x=>x.id===t.id?{...x,status:"blocked"}:x);setThreats(n);}} color={C.green} style={{ fontSize:10, padding:"3px 8px" }}>Block</Btn>}
             </div>
           </div>
         </Card>
-      ))}
+      ); })}
     </div>
   );
 }
