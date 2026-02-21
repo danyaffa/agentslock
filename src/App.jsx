@@ -273,7 +273,7 @@ const Stat = ({ label, value, color = C.bright, sub }) => (
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH SCREEN (Phase 3)
 // ═══════════════════════════════════════════════════════════════════════════════
-function AuthScreen({ onLogin, onSignup, onGoogleLogin }) {
+function AuthScreen({ onLogin, onSignup, onGoogleLogin, threatStatus }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -316,6 +316,36 @@ function AuthScreen({ onLogin, onSignup, onGoogleLogin }) {
             Your all-in-one security dashboard — check passwords against known breaches, analyze password strength, scan websites for vulnerabilities, harden your devices, and respond to incidents with guided playbooks.
           </p>
         </div>
+
+        {/* Threat Status Indicator */}
+        {threatStatus && (() => {
+          const safe = threatStatus.safe;
+          const color = safe ? C.green : C.red;
+          return (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+              borderRadius: 10, marginBottom: 16,
+              background: safe ? `${C.green}10` : `${C.red}10`,
+              border: `1px solid ${color}30`,
+            }}>
+              <div style={{
+                width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+                background: color, boxShadow: `0 0 10px ${color}50`,
+                animation: safe ? "none" : "pulse 2s infinite",
+              }} />
+              <div>
+                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 13, color, letterSpacing: "0.06em" }}>
+                  {safe ? "SAFE" : "CRITICAL"}
+                </div>
+                {!safe && (
+                  <div style={{ fontSize: 11, color: C.text, marginTop: 2 }}>
+                    Login, scan and block now!
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         <Card>
           <div style={{ display: "flex", marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
@@ -3082,158 +3112,9 @@ const TABS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FLOATING STATUS WIDGET — Always-on-top, draggable PiP security monitor
-// ═══════════════════════════════════════════════════════════════════════════════
-function StatusWidget({ threats }) {
-  const [expanded, setExpanded] = useState(false);
-  const [pos, setPos] = useState(() => {
-    try { const s = sessionStorage.getItem("al_widget_pos"); return s ? JSON.parse(s) : { x: 20, y: 20 }; }
-    catch { return { x: 20, y: 20 }; }
-  });
-  const [now, setNow] = useState(new Date());
-  const dragRef = useRef(null);
-  const offsetRef = useRef({ x: 0, y: 0 });
-  const didDrag = useRef(false);
-
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
-
-  const critical = threats.filter(t => t.status === "active" && (t.severity === "critical" || t.severity === "high")).length;
-  const active = threats.filter(t => t.status === "active").length;
-  const blocked = threats.filter(t => t.status === "blocked").length;
-  const isSafe = active === 0;
-  const statusColor = isSafe ? C.green : C.red;
-
-  // Drag handlers
-  const onPointerDown = (e) => {
-    if (e.target.closest("[data-no-drag]")) return;
-    didDrag.current = false;
-    offsetRef.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
-    dragRef.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e) => {
-    if (!dragRef.current) return;
-    didDrag.current = true;
-    const nx = Math.max(0, Math.min(window.innerWidth - 60, e.clientX - offsetRef.current.x));
-    const ny = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - offsetRef.current.y));
-    setPos({ x: nx, y: ny });
-  };
-  const onPointerUp = (e) => {
-    if (dragRef.current) {
-      dragRef.current = false;
-      e.currentTarget.releasePointerCapture(e.pointerId);
-      try { sessionStorage.setItem("al_widget_pos", JSON.stringify(pos)); } catch {}
-      if (!didDrag.current) setExpanded(v => !v);
-    }
-  };
-
-  return (
-    <div
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-      style={{
-        position: "fixed", left: pos.x, top: pos.y, zIndex: 9999,
-        fontFamily: "'Space Grotesk', sans-serif", userSelect: "none", touchAction: "none",
-        transition: expanded ? "none" : "box-shadow 0.3s",
-      }}
-    >
-      {/* Collapsed: tiny pill */}
-      {!expanded && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "8px 14px", borderRadius: 24,
-          background: `${C.bgCard}f0`, backdropFilter: "blur(12px)",
-          border: `1px solid ${statusColor}40`,
-          boxShadow: `0 4px 20px ${C.bg}80, 0 0 12px ${statusColor}20`,
-          cursor: "grab",
-        }}>
-          <div style={{
-            width: 10, height: 10, borderRadius: "50%", background: statusColor,
-            boxShadow: `0 0 8px ${statusColor}60`,
-            animation: isSafe ? "none" : "pulse 2s infinite",
-          }} />
-          <span style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 10, letterSpacing: "0.08em", color: statusColor }}>
-            {isSafe ? "SAFE" : `${active} ALERT${active > 1 ? "S" : ""}`}
-          </span>
-          <span style={{ fontFamily: "'Fira Code'", fontSize: 10, color: C.dim }}>
-            {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </div>
-      )}
-
-      {/* Expanded: full status card */}
-      {expanded && (
-        <div style={{
-          width: 260, borderRadius: 16,
-          background: `${C.bgCard}f5`, backdropFilter: "blur(16px)",
-          border: `1px solid ${statusColor}30`,
-          boxShadow: `0 8px 32px ${C.bg}90, 0 0 20px ${statusColor}15`,
-          cursor: "grab", overflow: "hidden",
-        }}>
-          {/* Header bar */}
-          <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, background: `linear-gradient(135deg, ${statusColor}, ${isSafe ? C.blue : C.orange})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <I.Shield s={12} style={{ color: "#fff" }} />
-              </div>
-              <span style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 11, color: C.bright, letterSpacing: "0.06em" }}>AGENTSLOCK</span>
-            </div>
-            <span style={{ fontFamily: "'Fira Code'", fontSize: 10, color: C.dim }}>{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-          </div>
-
-          {/* Status section */}
-          <div style={{ padding: "16px 14px", textAlign: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{
-                width: 14, height: 14, borderRadius: "50%", background: statusColor,
-                boxShadow: `0 0 10px ${statusColor}50`,
-                animation: isSafe ? "none" : "pulse 2s infinite",
-              }} />
-              <span style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 16, letterSpacing: "0.08em", color: statusColor }}>
-                {isSafe ? "ALL SAFE" : "TAKE ACTION"}
-              </span>
-              <div style={{
-                width: 14, height: 14, borderRadius: "50%", background: statusColor,
-                boxShadow: `0 0 10px ${statusColor}50`,
-                animation: isSafe ? "none" : "pulse 2s infinite",
-              }} />
-            </div>
-
-            {!isSafe && (
-              <div style={{ padding: "6px 12px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 6, marginBottom: 10, display: "inline-block" }}>
-                <span style={{ color: C.red, fontSize: 11, fontWeight: 600 }}>
-                  {critical > 0 ? `${critical} CRITICAL` : ""}{critical > 0 && active > critical ? " + " : ""}{active > critical ? `${active - critical} active` : ""}
-                </span>
-              </div>
-            )}
-
-            {/* Threat summary row */}
-            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 8 }}>
-              {[
-                { label: "Active", count: active, color: active > 0 ? C.red : C.green },
-                { label: "Blocked", count: blocked, color: C.blue },
-              ].map((item, i) => (
-                <div key={i} style={{ textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Fira Code'", fontSize: 18, fontWeight: 700, color: item.color }}>{item.count}</div>
-                  <div style={{ fontSize: 9, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em" }}>{item.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div style={{ padding: "8px 14px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 9, color: C.dim }}>{now.toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-            <span style={{ fontSize: 9, color: C.dim, opacity: 0.6 }}>drag to move</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
+// (StatusWidget removed — threat status now shown on login screen)
 export default function App() {
   const { user, loading, login, signup, googleLogin, logout } = useAuth();
   const [tab, setTab] = useState("overview");
@@ -3307,7 +3188,7 @@ export default function App() {
   }, [user, dataLoaded]);
 
   const setChecksAndSave = (v) => { const nv = typeof v === "function" ? v(checks) : v; setChecks(nv); autoSave("checks", nv); };
-  const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); };
+  const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); const ac = nv.filter(t => t.status === "active").length; LS.set("threatStatus", { safe: ac === 0, active: ac }); };
   const setAccountsAndSave = (v) => { const nv = typeof v === "function" ? v(accounts) : v; setAccounts(nv); autoSave("accounts", nv); };
   const setMonitorsAndSave = (v) => { const nv = typeof v === "function" ? v(monitors) : v; setMonitors(nv); autoSave("monitors", nv); };
   // Auto-save deviceCleaned whenever it changes (useEffect avoids stale closure issues with functional setState)
@@ -3414,7 +3295,7 @@ export default function App() {
     return r;
   };
 
-  if (!user) return <AuthScreen onLogin={login} onSignup={handleSignup} onGoogleLogin={googleLogin} />;
+  if (!user) { const ts = LS.get("threatStatus", { safe: true, active: 0 }); return <AuthScreen onLogin={login} onSignup={handleSignup} onGoogleLogin={googleLogin} threatStatus={ts} />; }
 
   // Admin bypass — developer always gets full access (no PayPal required)
   const isAdmin = import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
@@ -3530,8 +3411,6 @@ export default function App() {
       {/* Legal overlay */}
       <LegalOverlay page={legalPage} onClose={(nextPage) => setLegalPage(nextPage || null)} />
 
-      {/* Floating status widget — always-on-top, draggable */}
-      <StatusWidget threats={threats} />
     </div>
   );
 }
