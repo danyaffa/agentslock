@@ -114,14 +114,72 @@ const downloadReport = (name, content) => {
 };
 const ReportBtn = ({ onClick }) => <Btn onClick={onClick} color={C.blue} style={{ fontSize: 10 }}><I.Download /> Download Report</Btn>;
 
+// ─── Session Guard (anti-hijack) ────────────────────────────────────────────
+const SESSION_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+function getSessionFingerprint() {
+  const nav = window.navigator;
+  const raw = [nav.userAgent, nav.language, nav.hardwareConcurrency, screen.width, screen.height, screen.colorDepth, Intl.DateTimeFormat().resolvedOptions().timeZone].join("|");
+  // Simple hash for comparison (not cryptographic — just identity check)
+  let h = 0;
+  for (let i = 0; i < raw.length; i++) { h = ((h << 5) - h + raw.charCodeAt(i)) | 0; }
+  return h.toString(36);
+}
+function bindSession() {
+  const fp = getSessionFingerprint();
+  sessionStorage.setItem("al_sfp", fp);
+  sessionStorage.setItem("al_stime", Date.now().toString());
+  return fp;
+}
+function validateSession() {
+  const stored = sessionStorage.getItem("al_sfp");
+  if (!stored) return true; // First load — will be bound on login
+  if (stored !== getSessionFingerprint()) return false; // Fingerprint mismatch
+  const stime = parseInt(sessionStorage.getItem("al_stime") || "0", 10);
+  if (Date.now() - stime > SESSION_IDLE_TIMEOUT) return false; // Idle timeout
+  return true;
+}
+function touchSession() {
+  sessionStorage.setItem("al_stime", Date.now().toString());
+}
+
 // ─── Firebase Auth Hook ──────────────────────────────────────────────────────
 function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const unsub = onAuth((u) => { setUser(u); setLoading(false); });
+    const unsub = onAuth((u) => {
+      if (u) {
+        if (!validateSession()) {
+          // Session fingerprint mismatch or idle timeout — force logout
+          logOut(); setUser(null); setLoading(false);
+          sessionStorage.removeItem("al_sfp");
+          sessionStorage.removeItem("al_stime");
+          return;
+        }
+        bindSession();
+      } else {
+        sessionStorage.removeItem("al_sfp");
+        sessionStorage.removeItem("al_stime");
+      }
+      setUser(u); setLoading(false);
+    });
     return unsub;
   }, []);
+  // Touch session on user activity to reset idle timer
+  useEffect(() => {
+    if (!user) return;
+    const onActivity = () => touchSession();
+    const events = ["mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
+    // Periodic idle check every 60 seconds
+    const idleCheck = setInterval(() => {
+      if (!validateSession()) { logOut(); setUser(null); }
+    }, 60000);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, onActivity));
+      clearInterval(idleCheck);
+    };
+  }, [user]);
   const firebaseAuthError = (e) => {
     const code = e.code || "";
     const map = {

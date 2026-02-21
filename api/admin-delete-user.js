@@ -9,10 +9,15 @@ if (!admin.apps.length) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // CORS headers — restrict to app origin only
+  const allowedOrigin = process.env.VITE_APP_URL || "https://agentslock.com";
+  const origin = req.headers.origin;
+  if (origin === allowedOrigin || origin === allowedOrigin.replace("https://", "https://www.")) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Vary", "Origin");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
