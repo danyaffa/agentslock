@@ -159,7 +159,24 @@ function useAuth() {
       }
       return { ok: true };
     }
-    catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
+    catch (e) {
+      // Firebase v11 returns auth/invalid-credential for BOTH "no account" and "wrong password".
+      // Auto-create account if it doesn't exist, so Sign In always works for new users.
+      if (e.code === "auth/invalid-credential" || e.code === "auth/invalid-login-credentials") {
+        try {
+          const displayName = email.split("@")[0];
+          const result = await signUp(email, pass, displayName, promoCode);
+          return { ok: true, subscription: result.subscription || null };
+        } catch (signUpErr) {
+          if (signUpErr.code === "auth/email-already-in-use") {
+            // Account exists — password is genuinely wrong
+            return { ok: false, err: "Incorrect password. Please try again." };
+          }
+          return { ok: false, err: firebaseAuthError(signUpErr) };
+        }
+      }
+      return { ok: false, err: firebaseAuthError(e) };
+    }
   };
   const doSignup = async (email, name, pass, promoCode) => {
     try {
