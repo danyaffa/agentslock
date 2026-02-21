@@ -648,7 +648,7 @@ function applyProtection(fixId) {
   } catch {}
 }
 
-function OverviewTab({ checks, threats, setThreats, accounts, setAccounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
+function OverviewTab({ checks, setChecks, threats, setThreats, accounts, setAccounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
   const totalChecks = Object.values(DEVICE_CHECKS).flat().length;
   const doneChecks = Object.keys(checks).filter(k => checks[k]).length;
   const baseScore = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
@@ -658,6 +658,16 @@ function OverviewTab({ checks, threats, setThreats, accounts, setAccounts, scanL
   const score = Math.max(0, baseScore - threatPenalty);
   const highRisk = accounts.filter(a => accountRisk(a) === "high").length;
   const onlineMonitors = monitors.filter(m => m.status === "up").length;
+
+  // ── Secure Everything — called by Block All Threats & Clean Up to sync all pages ──
+  const secureEverything = () => {
+    // Block all active threats
+    setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t));
+    // Secure all accounts (enable 2FA + app passwords)
+    if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" })));
+    // Mark all device hardening checks as done
+    if (setChecks) { const allDone = {}; Object.values(DEVICE_CHECKS).flat().forEach(c => { allDone[c.id] = true; }); setChecks(allDone); }
+  };
 
   // ── Device Scan State ──
   const [scanning, setScanning] = useState(false);
@@ -893,6 +903,8 @@ function OverviewTab({ checks, threats, setThreats, accounts, setAccounts, scanL
       return remaining;
     });
     addLog({ type: "Eliminate", target: `${actionable.length} threats`, safe: true });
+    // Secure all pages after cleanup
+    secureEverything();
   };
 
   const sevIcon = (sev) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green, safe: C.green, protected: C.green }[sev] || C.dim);
@@ -1126,7 +1138,7 @@ function OverviewTab({ checks, threats, setThreats, accounts, setAccounts, scanL
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Card glow={activeThreats > 0 ? C.red : undefined}>
           <Sect title="Recent Threats" icon={<I.Alert />} right={activeThreats > 0 && (
-            <Btn onClick={() => { const n = threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t); setThreats(n); if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" }))); }} color={C.green} style={{ fontSize: 10, padding: "4px 12px" }}><I.Shield /> Block All Threats</Btn>
+            <Btn onClick={secureEverything} color={C.green} style={{ fontSize: 10, padding: "4px 12px" }}><I.Shield /> Block All Threats</Btn>
           )}>
             {threats.length === 0 ? <div style={{ textAlign: "center", padding: 20, color: C.dim }}>All clear</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1529,6 +1541,10 @@ const DEFAULT_CHECKS = Object.values(DEVICE_CHECKS).flat().reduce((acc, c) => ({
 function DeviceTab({ checks, setChecks }) {
   const [active, setActive] = useState("windows");
   const items = DEVICE_CHECKS[active]; const done = items.filter(c => checks[c.id]).length; const pct = Math.round((done / items.length) * 100);
+  const allChecks = Object.values(DEVICE_CHECKS).flat();
+  const totalDone = allChecks.filter(c => checks[c.id]).length;
+  const unsecured = allChecks.length - totalDone;
+  const secureAllDevices = () => { const allDone = {}; allChecks.forEach(c => { allDone[c.id] = true; }); setChecks(allDone); };
   const exportDevice = () => {
     const lines = [`AGENTSLOCK — DEVICE HARDENING REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``];
     Object.entries(DEVICE_CHECKS).forEach(([platform, checks_list]) => {
@@ -1541,7 +1557,17 @@ function DeviceTab({ checks, setChecks }) {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportDevice} /></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {unsecured > 0 ? (
+          <Btn onClick={secureAllDevices} color={C.green} style={{ fontSize: 12, padding: "8px 20px" }}><I.Shield /> Secure All Devices ({unsecured})</Btn>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <I.Shield s={16} style={{ color: C.green }} />
+            <span style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>All devices secured</span>
+          </div>
+        )}
+        <ReportBtn onClick={exportDevice} />
+      </div>
       <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
         {Object.entries(DEVICE_META).map(([k, m]) => { const d = DEVICE_CHECKS[k].filter(c => checks[c.id]).length, t = DEVICE_CHECKS[k].length; return (
           <Card key={k} onClick={() => setActive(k)} style={{ minWidth: 120, padding: 14, textAlign: "center", borderColor: active === k ? C.green : C.border, background: active === k ? `${C.green}08` : C.bgCard }}>
@@ -1629,12 +1655,15 @@ function AccountTab({ accounts, setAccounts }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 7: THREATS
 // ═══════════════════════════════════════════════════════════════════════════════
-function ThreatTab({ threats, setThreats, accounts, setAccounts }) {
+function ThreatTab({ threats, setThreats, accounts, setAccounts, checks, setChecks }) {
   const [filter, setFilter] = useState("all");
   const activeCount = threats.filter(t => t.status === "active").length;
   const filtered = filter === "all" ? threats : threats.filter(t => t.status === filter);
-  const secureAllAccounts = () => { if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" }))); };
-  const blockAll = () => { setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t)); secureAllAccounts(); };
+  const blockAll = () => {
+    setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t));
+    if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" })));
+    if (setChecks) { const allDone = {}; Object.values(DEVICE_CHECKS).flat().forEach(c => { allDone[c.id] = true; }); setChecks(allDone); }
+  };
   const exportThreats = () => {
     const lines = [`AGENTSLOCK — THREAT REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `ACTIVE: ${threats.filter(t=>t.status==="active").length}`, `BLOCKED: ${threats.filter(t=>t.status==="blocked").length}`, `INVESTIGATING: ${threats.filter(t=>t.status==="investigating").length}`, `RESOLVED: ${threats.filter(t=>t.status==="resolved").length}`, ``];
     threats.forEach(t => lines.push(`[${t.status.toUpperCase()}] ${t.name}`, `  Severity: ${t.severity}`, `  Target: ${t.target}`, `  Time: ${t.time}`, `  ${t.desc || ""}`, ``));
@@ -3497,13 +3526,13 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} setThreats={setThreatsAndSave} accounts={accounts} setAccounts={setAccountsAndSave} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
+        {tab==="overview" && <OverviewTab checks={checks} setChecks={setChecksAndSave} threats={threats} setThreats={setThreatsAndSave} accounts={accounts} setAccounts={setAccountsAndSave} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
         {tab==="devices" && <DeviceTab checks={checks} setChecks={setChecksAndSave} />}
         {tab==="accounts" && <AccountTab accounts={accounts} setAccounts={setAccountsAndSave} />}
-        {tab==="threats" && <ThreatTab threats={threats} setThreats={setThreatsAndSave} accounts={accounts} setAccounts={setAccountsAndSave} />}
+        {tab==="threats" && <ThreatTab threats={threats} setThreats={setThreatsAndSave} accounts={accounts} setAccounts={setAccountsAndSave} checks={checks} setChecks={setChecksAndSave} />}
         {tab==="monitor" && <MonitorTab monitors={monitors} setMonitors={setMonitorsAndSave} />}
         {tab==="reports" && <ReportTab checks={checks} threats={threats} accounts={accounts} monitors={monitors} scanLog={scanLog} />}
         {tab==="incident" && <IncidentTab />}
