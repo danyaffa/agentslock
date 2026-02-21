@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, updateEmail as fbUpdateEmail, updatePassword as fbUpdatePassword, EmailAuthProvider, reauthenticateWithCredential, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -103,6 +103,32 @@ export async function logInWithGoogle() {
 export async function logOut() {
   if (!auth) return;
   await signOut(auth);
+}
+
+// ─── Account update helpers ──────────────────────────────────────────────────
+export async function reauthenticate(currentPassword) {
+  if (!auth?.currentUser) throw new Error("Not signed in");
+  const cred = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+  await reauthenticateWithCredential(auth.currentUser, cred);
+}
+
+export async function changeDisplayName(newName) {
+  if (!auth?.currentUser) throw new Error("Not signed in");
+  await updateProfile(auth.currentUser, { displayName: newName });
+  if (db) await updateDoc(doc(db, "users", auth.currentUser.uid), { displayName: newName });
+}
+
+export async function changeEmail(newEmail, currentPassword) {
+  if (!auth?.currentUser) throw new Error("Not signed in");
+  await reauthenticate(currentPassword);
+  await fbUpdateEmail(auth.currentUser, newEmail);
+  if (db) await updateDoc(doc(db, "users", auth.currentUser.uid), { email: newEmail });
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  if (!auth?.currentUser) throw new Error("Not signed in");
+  await reauthenticate(currentPassword);
+  await fbUpdatePassword(auth.currentUser, newPassword);
 }
 
 export function onAuth(callback) {

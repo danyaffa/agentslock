@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Component } from "react";
-import { auth, db, firebaseError, signUp, logIn, logInWithGoogle, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, getAllUsers, adminDeleteUser, adminUpdateUser } from "./firebase.js";
+import { auth, db, firebaseError, signUp, logIn, logInWithGoogle, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, getAllUsers, adminDeleteUser, adminUpdateUser, changeDisplayName, changeEmail, changePassword } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
@@ -2129,19 +2129,110 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
   const [autoScan, setAutoScan] = useState(() => LS.get("autoScan", false));
   const [dataCleared, setDataCleared] = useState(false);
 
+  // Account settings state
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [currentPass, setCurrentPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [acctMsg, setAcctMsg] = useState(null); // { type: "ok"|"err", text }
+  const [acctBusy, setAcctBusy] = useState(false);
+  const isGoogleUser = user?.providerData?.[0]?.providerId === "google.com";
+
+  const showMsg = (type, text) => { setAcctMsg({ type, text }); setTimeout(() => setAcctMsg(null), 5000); };
+
+  const handleNameChange = async () => {
+    if (!editName.trim()) return;
+    setAcctBusy(true);
+    try { await changeDisplayName(editName.trim()); showMsg("ok", "Display name updated"); setEditName(""); }
+    catch (e) { showMsg("err", e.message); }
+    setAcctBusy(false);
+  };
+
+  const handleEmailChange = async () => {
+    if (!editEmail.trim() || !currentPass) { showMsg("err", "Enter new email and current password"); return; }
+    setAcctBusy(true);
+    try { await changeEmail(editEmail.trim(), currentPass); showMsg("ok", "Email updated"); setEditEmail(""); setCurrentPass(""); }
+    catch (e) { showMsg("err", e.message); }
+    setAcctBusy(false);
+  };
+
+  const handlePasswordChange = async () => {
+    if (!currentPass || !newPass) { showMsg("err", "Fill in all password fields"); return; }
+    if (newPass.length < 6) { showMsg("err", "New password must be 6+ characters"); return; }
+    if (newPass !== confirmPass) { showMsg("err", "New passwords do not match"); return; }
+    setAcctBusy(true);
+    try { await changePassword(currentPass, newPass); showMsg("ok", "Password changed successfully"); setCurrentPass(""); setNewPass(""); setConfirmPass(""); }
+    catch (e) { showMsg("err", e.message); }
+    setAcctBusy(false);
+  };
+
   const clearAll = () => {
     ["checks","accounts","threats","monitors","scanLog","irChecks"].forEach(k => LS.del(k));
     setDataCleared(true); setTimeout(() => setDataCleared(false), 3000);
   };
 
+  const fieldStyle = { width: "100%", padding: "8px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, color: C.bright, fontSize: 12, fontFamily: "inherit", outline: "none" };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Card>
         <Sect title="Account" icon={<I.User />}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.bg, borderRadius: 8 }}>
-            <div><div style={{ color: C.bright, fontWeight: 600 }}>{user?.displayName || "User"}</div><div style={{ color: C.dim, fontSize: 12 }}>{user?.email}</div><div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>UID: {user?.uid?.slice(0,12)}...</div></div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.bg, borderRadius: 8, marginBottom: 12 }}>
+            <div>
+              <div style={{ color: C.bright, fontWeight: 600 }}>{user?.displayName || "User"}</div>
+              <div style={{ color: C.dim, fontSize: 12 }}>{user?.email}</div>
+              <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>
+                UID: {user?.uid?.slice(0,12)}...
+                {isGoogleUser && <span style={{ marginLeft: 8, color: C.blue }}>(Google account)</span>}
+              </div>
+            </div>
             <Btn onClick={logout} color={C.red}><I.LogOut /> Sign Out</Btn>
           </div>
+
+          {acctMsg && (
+            <div style={{ padding: "8px 12px", background: acctMsg.type === "ok" ? C.greenDim : C.redDim, border: `1px solid ${acctMsg.type === "ok" ? C.greenBdr : C.redBdr}`, borderRadius: 6, color: acctMsg.type === "ok" ? C.green : C.red, fontSize: 12, marginBottom: 12 }}>{acctMsg.text}</div>
+          )}
+
+          {/* Change Display Name */}
+          <div style={{ padding: "12px 16px", background: C.bg, borderRadius: 8, marginBottom: 8 }}>
+            <label style={{ fontSize: 11, color: C.dim, marginBottom: 6, display: "block" }}>Change Display Name</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={user?.displayName || "New name"} style={fieldStyle} />
+              <Btn onClick={handleNameChange} disabled={acctBusy || !editName.trim()} color={C.green} style={{ flexShrink: 0 }}><I.Check /> Save</Btn>
+            </div>
+          </div>
+
+          {/* Change Email — not available for Google sign-in users */}
+          {!isGoogleUser && (
+            <div style={{ padding: "12px 16px", background: C.bg, borderRadius: 8, marginBottom: 8 }}>
+              <label style={{ fontSize: 11, color: C.dim, marginBottom: 6, display: "block" }}>Change Email</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="New email address" type="email" style={fieldStyle} />
+                <input value={currentPass} onChange={e => setCurrentPass(e.target.value)} placeholder="Current password (required)" type="password" style={fieldStyle} />
+                <Btn onClick={handleEmailChange} disabled={acctBusy || !editEmail.trim() || !currentPass} color={C.green} style={{ alignSelf: "flex-start" }}><I.Mail /> Update Email</Btn>
+              </div>
+            </div>
+          )}
+
+          {/* Change Password — not available for Google sign-in users */}
+          {!isGoogleUser && (
+            <div style={{ padding: "12px 16px", background: C.bg, borderRadius: 8 }}>
+              <label style={{ fontSize: 11, color: C.dim, marginBottom: 6, display: "block" }}>Change Password</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <input value={currentPass} onChange={e => setCurrentPass(e.target.value)} placeholder="Current password" type="password" style={fieldStyle} />
+                <input value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="New password (min 6 chars)" type="password" style={fieldStyle} />
+                <input value={confirmPass} onChange={e => setConfirmPass(e.target.value)} placeholder="Confirm new password" type="password" style={fieldStyle} />
+                <Btn onClick={handlePasswordChange} disabled={acctBusy || !currentPass || !newPass || !confirmPass} color={C.green} style={{ alignSelf: "flex-start" }}><I.Lock /> Update Password</Btn>
+              </div>
+            </div>
+          )}
+
+          {isGoogleUser && (
+            <div style={{ padding: "10px 14px", background: C.bg, borderRadius: 8, color: C.dim, fontSize: 11, lineHeight: 1.5 }}>
+              Email and password are managed by your Google account. To change them, visit your <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" style={{ color: C.blue, textDecoration: "none" }}>Google Account Settings</a>.
+            </div>
+          )}
         </Sect>
       </Card>
 
@@ -3346,6 +3437,11 @@ export default function App() {
             <I.Download s={14}/> Install App
           </button>
           <div style={{ display:"flex", alignItems:"center", gap:6, color:C.dim, fontSize:11 }}><I.User s={14}/>{userName}</div>
+          <button onClick={logout} title="Sign Out"
+            style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:500, color:C.dim, transition:"all 0.2s" }}
+            onMouseOver={e=>{e.currentTarget.style.borderColor=C.red;e.currentTarget.style.color=C.red}} onMouseOut={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.dim}}>
+            <I.LogOut s={13}/> Logout
+          </button>
         </div>
       </header>
 
