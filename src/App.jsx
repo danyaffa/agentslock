@@ -128,16 +128,37 @@ function useAuth() {
       "auth/email-already-in-use": "This email is already registered. Try logging in instead.",
       "auth/invalid-email": "Please enter a valid email address.",
       "auth/weak-password": "Password is too weak. Use at least 6 characters.",
-      "auth/user-not-found": "No account found with this email.",
+      "auth/user-not-found": "No account found with this email. Create an account first.",
       "auth/wrong-password": "Incorrect password. Please try again.",
-      "auth/too-many-requests": "Too many attempts. Please wait and try again.",
+      "auth/too-many-requests": "Too many attempts. Please wait a minute and try again.",
       "auth/network-request-failed": "Network error. Check your connection and try again.",
-      "auth/invalid-credential": "Invalid email or password.",
+      "auth/invalid-credential": "Incorrect email or password. Please double-check and try again.",
+      "auth/invalid-login-credentials": "Incorrect email or password. Please double-check and try again.",
     };
     return map[code] || e.message.replace("Firebase: ", "").replace(/\(auth\/.*\)\.?/, "").trim() || "Something went wrong. Please try again.";
   };
-  const doLogin = async (email, pass) => {
-    try { await logIn(email, pass); return { ok: true }; }
+  const doLogin = async (email, pass, promoCode) => {
+    try {
+      const u = await logIn(email, pass);
+      // If user provided a promo code at login, apply it to activate subscription
+      if (promoCode && u) {
+        const validPromo = import.meta.env.VITE_PROMO_CODE;
+        if (validPromo && promoCode.toLowerCase() === validPromo.trim().toLowerCase()) {
+          try {
+            await saveSubscription(u.uid, {
+              status: "active",
+              plan: "promo",
+              amount: 0,
+              currency: "USD",
+              subscribedAt: new Date().toISOString(),
+              provider: "promo_code",
+              promoCode: promoCode,
+            });
+          } catch (_) { /* non-fatal — subscription save failed but login succeeded */ }
+        }
+      }
+      return { ok: true };
+    }
     catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
   const doSignup = async (email, name, pass, promoCode) => {
@@ -259,16 +280,20 @@ function AuthScreen({ onLogin, onSignup }) {
 
   const submit = async () => {
     setErr(""); setBusy(true);
-    if (!email || !pass) { setErr("Fill all fields"); setBusy(false); return; }
-    if (mode === "signup" && !name) { setErr("Enter your name"); setBusy(false); return; }
-    if (pass.length < 6) { setErr("Password must be 6+ characters"); setBusy(false); return; }
-    const r = mode === "login" ? await onLogin(email, pass) : await onSignup(email, name, pass, promoCode.trim());
+    const trimmedEmail = email.trim();
+    const trimmedPass = pass;
+    if (!trimmedEmail || !trimmedPass) { setErr("Fill all fields"); setBusy(false); return; }
+    if (mode === "signup" && !name.trim()) { setErr("Enter your name"); setBusy(false); return; }
+    if (trimmedPass.length < 6) { setErr("Password must be 6+ characters"); setBusy(false); return; }
+    const r = mode === "login" ? await onLogin(trimmedEmail, trimmedPass, promoCode.trim()) : await onSignup(trimmedEmail, name.trim(), trimmedPass, promoCode.trim());
     if (!r.ok) setErr(r.err);
     setBusy(false);
   };
 
+  const handleKey = (e) => { if (e.key === "Enter" && !busy) submit(); };
+
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif" }} onKeyDown={handleKey}>
       <div style={{ width: 400, padding: 40 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
@@ -306,13 +331,12 @@ function AuthScreen({ onLogin, onSignup }) {
             <Input value={pass} onChange={setPass} placeholder="••••••••" type="password" icon={<I.Lock />} />
           </div>
 
-          {mode === "signup" && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Promo Code <span style={{ color: C.dim, fontStyle: "italic" }}>(optional)</span></label>
-              <Input value={promoCode} onChange={setPromoCode} placeholder="Enter promo code" icon={<I.Zap />} />
-              <p style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Have an invite code? Enter it to get free access.</p>
-            </div>
-          )}
+          {/* Promo Code — shown on both Login and Signup */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Promo Code <span style={{ color: C.dim, fontStyle: "italic" }}>(optional)</span></label>
+            <Input value={promoCode} onChange={setPromoCode} placeholder="Enter promo code" icon={<I.Zap />} />
+            <p style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Have an invite code? Enter it to get free access.</p>
+          </div>
 
           {err && <div style={{ padding: "8px 12px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
 
