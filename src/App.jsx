@@ -661,8 +661,8 @@ function OverviewTab({ checks, setChecks, threats, setThreats, accounts, setAcco
 
   // ── Secure Everything — called by Block All Threats & Clean Up to sync all pages ──
   const secureEverything = () => {
-    // Block all active threats
-    setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t));
+    // Block all threats (active, resolved, investigating → all become blocked)
+    setThreats(threats.map(t => t.status !== "blocked" ? { ...t, status: "blocked" } : t));
     // Secure all accounts (enable 2FA + app passwords)
     if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" })));
     // Mark all device hardening checks as done
@@ -1657,10 +1657,10 @@ function AccountTab({ accounts, setAccounts }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function ThreatTab({ threats, setThreats, accounts, setAccounts, checks, setChecks }) {
   const [filter, setFilter] = useState("all");
-  const activeCount = threats.filter(t => t.status === "active").length;
+  const unblockedCount = threats.filter(t => t.status !== "blocked").length;
   const filtered = filter === "all" ? threats : threats.filter(t => t.status === filter);
   const blockAll = () => {
-    setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t));
+    setThreats(threats.map(t => t.status !== "blocked" ? { ...t, status: "blocked" } : t));
     if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" })));
     if (setChecks) { const allDone = {}; Object.values(DEVICE_CHECKS).flat().forEach(c => { allDone[c.id] = true; }); setChecks(allDone); }
   };
@@ -1672,8 +1672,8 @@ function ThreatTab({ threats, setThreats, accounts, setAccounts, checks, setChec
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        {activeCount > 0 ? (
-          <Btn onClick={blockAll} color={C.green} style={{ fontSize: 12, padding: "8px 20px" }}><I.Shield /> Block All Threats ({activeCount})</Btn>
+        {unblockedCount > 0 ? (
+          <Btn onClick={blockAll} color={C.green} style={{ fontSize: 12, padding: "8px 20px" }}><I.Shield /> Block All Threats ({unblockedCount})</Btn>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <I.Shield s={16} style={{ color: C.green }} />
@@ -1683,13 +1683,13 @@ function ThreatTab({ threats, setThreats, accounts, setAccounts, checks, setChec
         <ReportBtn onClick={exportThreats} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-        <Stat label="Active" value={activeCount} color={activeCount > 0 ? C.red : C.green} />
+        <Stat label="Active" value={threats.filter(t=>t.status==="active").length} color={threats.filter(t=>t.status==="active").length > 0 ? C.red : C.green} />
         <Stat label="Blocked" value={threats.filter(t=>t.status==="blocked").length} color={C.green} />
         <Stat label="Investigating" value={threats.filter(t=>t.status==="investigating").length} color={C.orange} />
         <Stat label="Resolved" value={threats.filter(t=>t.status==="resolved").length} color={C.blue} />
       </div>
       <div style={{ display: "flex", gap: 6 }}>{["all","active","blocked","investigating","resolved"].map(f => <Btn key={f} onClick={()=>setFilter(f)} color={filter===f?C.green:C.dim} style={{ fontSize:10, padding:"5px 10px", textTransform:"capitalize" }}>{f}</Btn>)}</div>
-      {activeCount === 0 && threats.length > 0 && filter === "all" && (
+      {unblockedCount === 0 && threats.length > 0 && filter === "all" && (
         <Card glow={C.green}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
             <I.Shield s={18} style={{ color: C.green }} />
