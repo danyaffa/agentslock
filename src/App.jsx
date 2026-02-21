@@ -154,21 +154,38 @@ function useAuth() {
             provider: "promo_code",
             promoCode: promoCode,
           };
-          try {
-            await saveSubscription(u.uid, subData);
-          } catch (_) { /* non-fatal */ }
+          try { await saveSubscription(u.uid, subData); } catch (_) {}
           return { ok: true, subscription: subData };
         }
       }
       return { ok: true };
     }
-    catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
+    catch (e) {
+      // If user not found, auto-create account so they don't get stuck
+      const code = e.code || "";
+      if (code === "auth/user-not-found" || code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") {
+        try {
+          const result = await signUp(email, pass, email.split("@")[0], promoCode);
+          return { ok: true, subscription: result.subscription || null };
+        } catch (e2) {
+          // If signup also fails (e.g. already exists with different password), show original error
+          return { ok: false, err: firebaseAuthError(e2) };
+        }
+      }
+      return { ok: false, err: firebaseAuthError(e) };
+    }
   };
   const doSignup = async (email, name, pass, promoCode) => {
     try {
       const result = await signUp(email, pass, name, promoCode);
       return { ok: true, subscription: result.subscription };
-    } catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
+    } catch (e) {
+      // If email already exists, auto-try login instead so user doesn't get stuck
+      if ((e.code || "") === "auth/email-already-in-use") {
+        return doLogin(email, pass, promoCode);
+      }
+      return { ok: false, err: firebaseAuthError(e) };
+    }
   };
   const doGoogleLogin = async () => {
     try { await logInWithGoogle(); return { ok: true }; }
