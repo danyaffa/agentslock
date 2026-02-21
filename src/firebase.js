@@ -3,28 +3,22 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAn_QZCMF4aQyXtPHAJqDLHa1tQcOqZDWA",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "agentslock-3221b.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "agentslock-3221b",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "agentslock-3221b.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "648882538183",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:648882538183:web:85fe9a803870a94bfb20e2",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-H3M3R1FECE",
+  apiKey: "AIzaSyAn_QZCMF4aQyXtPHAJqDLHa1tQcOqZDWA",
+  authDomain: "agentslock-3221b.firebaseapp.com",
+  projectId: "agentslock-3221b",
+  storageBucket: "agentslock-3221b.firebasestorage.app",
+  messagingSenderId: "648882538183",
+  appId: "1:648882538183:web:85fe9a803870a94bfb20e2",
+  measurementId: "G-H3M3R1FECE",
 };
 
-// Check if Firebase config is present (env vars set during build)
-const hasConfig = firebaseConfig.apiKey && firebaseConfig.projectId;
-
-// Initialize Firebase safely — if env vars are missing, the app still loads
+// Initialize Firebase
 let app = null;
 let auth = null;
 let db = null;
 let firebaseError = null;
 
 try {
-  if (!hasConfig) {
-    throw new Error("Firebase environment variables are not configured. Add VITE_FIREBASE_* to your Vercel environment variables and redeploy.");
-  }
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
