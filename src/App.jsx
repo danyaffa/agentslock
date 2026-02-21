@@ -1074,7 +1074,7 @@ function OverviewTab({ checks, threats, setThreats, accounts, scanLog, monitors,
                     <span style={{ color: C.text }}>{s.target}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ color: C.dim }}>{s.time?.toLocaleTimeString?.() || ""}</span>
+                    <span style={{ color: C.dim }}>{s.time ? new Date(s.time).toLocaleTimeString() : ""}</span>
                     <Badge color={s.safe ? C.green : C.red}>{s.safe ? "SAFE" : "RISK"}</Badge>
                   </div>
                 </div>
@@ -1100,7 +1100,8 @@ function BreachTab({ addLog }) {
   const checkEmail = async () => {
     if (!email) return; setLoading("email"); setEmailRes(null);
     try {
-      const r = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}?truncateResponse=false`, { headers: { "hibp-api-key": "", "User-Agent": "AgentsLock" } });
+      const hibpKey = LS.get("hibpKey", "");
+      const r = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}?truncateResponse=false`, { headers: { "hibp-api-key": hibpKey, "User-Agent": "AgentsLock" } });
       if (r.status === 404) { setEmailRes({ safe: true }); addLog({ type: "Breach", target: email, safe: true }); }
       else if (r.status === 401 || r.status === 403) { setEmailRes({ needsKey: true }); }
       else { const d = await r.json(); setEmailRes({ safe: false, breaches: d }); addLog({ type: "Breach", target: email, safe: false }); }
@@ -1628,7 +1629,8 @@ function MonitorTab({ monitors, setMonitors }) {
 
   const checkAll = async () => {
     setChecking(true);
-    for (const m of monitors) { await checkSite(m, monitors); }
+    let current = monitors;
+    for (const m of current) { await checkSite(m, current); }
     setChecking(false);
   };
 
