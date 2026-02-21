@@ -29,7 +29,6 @@ self.addEventListener('fetch', e => {
     url.hostname.includes('firebase') ||
     url.hostname.includes('googleapis') ||
     url.hostname.includes('paypal') ||
-    url.hostname.includes('haveibeenpwned') ||
     url.hostname.includes('pwnedpasswords') ||
     url.hostname.includes('ssllabs')
   ) {
