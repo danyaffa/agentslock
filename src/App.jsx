@@ -272,7 +272,7 @@ function AuthScreen({ onLogin, onSignup }) {
           <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 28, color: C.bright, margin: "0 0 4px", letterSpacing: "0.06em" }}>AGENTSLOCK</h1>
           <p style={{ color: C.dim, fontSize: 12 }}>Personal Cybersecurity Platform</p>
           <p style={{ color: C.text, fontSize: 11, marginTop: 12, lineHeight: 1.6, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
-            Your all-in-one security dashboard — detect data breaches, analyze passwords, scan websites for vulnerabilities, harden your devices, and respond to incidents with guided playbooks.
+            Your all-in-one security dashboard — check passwords against known breaches, analyze password strength, scan websites for vulnerabilities, harden your devices, and respond to incidents with guided playbooks.
           </p>
         </div>
 
@@ -411,7 +411,7 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
 
   const features = [
     { icon: <I.Shield />, text: "Full Cybersecurity Dashboard" },
-    { icon: <I.Database />, text: "Breach & Dark Web Monitoring" },
+    { icon: <I.Database />, text: "Password Breach Detection" },
     { icon: <I.Key />, text: "Password Strength Analyzer" },
     { icon: <I.Globe />, text: "Website Vulnerability Scanner" },
     { icon: <I.Monitor />, text: "Device Security Checklist" },
@@ -999,7 +999,7 @@ function OverviewTab({ checks, threats, setThreats, accounts, scanLog, monitors,
         <Sect title="Quick Actions" icon={<I.Zap />}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
             {[
-              { label: "Breach Check", desc: "Check email leaks", icon: <I.Mail />, color: C.blue, tab: "breach" },
+              { label: "Breach Check", desc: "Check password leaks", icon: <I.Key />, color: C.purple, tab: "breach" },
               { label: "Web Scanner", desc: "Scan site security", icon: <I.Globe />, color: C.cyan, tab: "scanner" },
               { label: "Device Hardening", desc: "Secure your devices", icon: <I.Shield />, color: C.green, tab: "devices" },
               { label: "Password Audit", desc: "Check password strength", icon: <I.Key />, color: C.purple, tab: "passwords" },
@@ -1091,23 +1091,10 @@ function OverviewTab({ checks, threats, setThreats, accounts, scanLog, monitors,
 // TAB 2: BREACH CHECKER
 // ═══════════════════════════════════════════════════════════════════════════════
 function BreachTab({ addLog }) {
-  const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
-  const [emailRes, setEmailRes] = useState(null);
   const [pwRes, setPwRes] = useState(null);
   const [loading, setLoading] = useState("");
 
-  const checkEmail = async () => {
-    if (!email) return; setLoading("email"); setEmailRes(null);
-    try {
-      const hibpKey = LS.get("hibpKey", "");
-      const r = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}?truncateResponse=false`, { headers: { "hibp-api-key": hibpKey, "User-Agent": "AgentsLock" } });
-      if (r.status === 404) { setEmailRes({ safe: true }); addLog({ type: "Breach", target: email, safe: true }); }
-      else if (r.status === 401 || r.status === 403) { setEmailRes({ needsKey: true }); }
-      else { const d = await r.json(); setEmailRes({ safe: false, breaches: d }); addLog({ type: "Breach", target: email, safe: false }); }
-    } catch { setEmailRes({ needsKey: true }); }
-    setLoading("");
-  };
   const checkPw = async () => {
     if (!pw) return; setLoading("pw"); setPwRes(null);
     try {
@@ -1124,13 +1111,6 @@ function BreachTab({ addLog }) {
 
   const exportBreach = () => {
     const lines = [`AGENTSLOCK — BREACH CHECK REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``];
-    if (emailRes) {
-      lines.push(`EMAIL BREACH CHECK: ${email}`);
-      if (emailRes.needsKey) lines.push(`  Result: API key required`);
-      else if (emailRes.safe) lines.push(`  Result: No breaches found`);
-      else { lines.push(`  Result: Found in ${emailRes.breaches.length} breach(es)`); emailRes.breaches.forEach(b => lines.push(`    - ${b.Name} (${b.BreachDate})`)); }
-    } else { lines.push(`EMAIL: Not checked yet`); }
-    lines.push(``);
     if (pwRes) {
       lines.push(`PASSWORD BREACH CHECK:`);
       if (pwRes.error) lines.push(`  Result: Error occurred`);
@@ -1142,41 +1122,39 @@ function BreachTab({ addLog }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportBreach} /></div>
-      <Card glow={C.blue}>
-        <Sect title="Email Breach Check" icon={<I.Mail />}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <Input value={email} onChange={setEmail} placeholder="Enter email..." icon={<I.Mail />} style={{ flex: 1 }} />
-            <Btn onClick={checkEmail} disabled={loading === "email"} color={C.blue}>{loading === "email" ? "Checking..." : "Check"}</Btn>
-          </div>
-          {emailRes && (
-            <div style={{ padding: 14, borderRadius: 8, background: emailRes.needsKey ? C.blueDim : emailRes.safe ? C.greenDim : C.redDim, border: `1px solid ${emailRes.needsKey ? C.blueBdr : emailRes.safe ? C.greenBdr : C.redBdr}` }}>
-              {emailRes.needsKey ? <div><div style={{ color: C.blue, fontWeight: 600 }}>ℹ️ API Key Required</div><div style={{ color: C.text, fontSize: 12, marginTop: 4 }}>Email lookup needs HIBP API key ($3.50/mo). <a href="https://haveibeenpwned.com/API/Key" target="_blank" rel="noopener" style={{ color: C.blue }}>Get one here</a>. Password check below is free!</div></div>
-              : emailRes.safe ? <div style={{ color: C.green, fontWeight: 600 }}>✅ No breaches found</div>
-              : <div><div style={{ color: C.red, fontWeight: 600, marginBottom: 8 }}>🔴 Found in {emailRes.breaches.length} breach(es)!</div>
-                  {emailRes.breaches.slice(0, 8).map((b, i) => (
-                    <div key={i} style={{ padding: "6px 10px", background: C.bg, borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
-                      <span style={{ color: C.bright, fontWeight: 600 }}>{b.Name}</span>
-                      <span style={{ color: C.dim, marginLeft: 8 }}>{b.BreachDate}</span>
-                    </div>))}
-                </div>}
-            </div>
-          )}
-        </Sect>
-      </Card>
       <Card glow={C.purple}>
         <Sect title="Password Breach Check" icon={<I.Key />}>
-          <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>🔒 Uses k-anonymity — your password never leaves your browser.</div>
+          <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>🔒 Uses k-anonymity — your password never leaves your browser. Checks against billions of leaked passwords from known data breaches.</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <Input value={pw} onChange={setPw} placeholder="Enter password..." type="password" icon={<I.Lock />} style={{ flex: 1 }} />
+            <Input value={pw} onChange={setPw} placeholder="Enter password to check..." type="password" icon={<I.Lock />} style={{ flex: 1 }} />
             <Btn onClick={checkPw} disabled={loading === "pw"} color={C.purple}>{loading === "pw" ? "Checking..." : "Check"}</Btn>
           </div>
           {pwRes && (
             <div style={{ padding: 14, borderRadius: 8, background: pwRes.safe ? C.greenDim : C.redDim, border: `1px solid ${pwRes.safe ? C.greenBdr : C.redBdr}` }}>
-              {pwRes.error ? <div style={{ color: C.orange }}>⚠️ Error — retry</div>
-              : pwRes.safe ? <div style={{ color: C.green, fontWeight: 600 }}>✅ Not found in breaches</div>
-              : <div><div style={{ color: C.red, fontWeight: 600 }}>🔴 Seen {pwRes.count.toLocaleString()} times!</div><div style={{ color: C.text, fontSize: 12, marginTop: 4 }}>Change immediately everywhere.</div></div>}
+              {pwRes.error ? <div style={{ color: C.orange }}>Error — retry</div>
+              : pwRes.safe ? <div style={{ color: C.green, fontWeight: 600 }}>Not found in breaches — this password is safe to use</div>
+              : <div><div style={{ color: C.red, fontWeight: 600 }}>Seen {pwRes.count.toLocaleString()} times in data breaches!</div><div style={{ color: C.text, fontSize: 12, marginTop: 4 }}>Change this password immediately everywhere you use it.</div></div>}
             </div>
           )}
+        </Sect>
+      </Card>
+      <Card>
+        <Sect title="How It Works" icon={<I.Shield />}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { step: "1", title: "Your password is hashed locally", desc: "SHA-1 hash is computed entirely in your browser — the password itself is never transmitted.", color: C.green },
+              { step: "2", title: "Only a tiny prefix is sent", desc: "Only the first 5 characters of the hash are sent to the Pwned Passwords API (k-anonymity).", color: C.blue },
+              { step: "3", title: "Comparison happens locally", desc: "The API returns matching hash suffixes. Your browser checks for a match — the server never sees your password.", color: C.purple },
+            ].map((item, i) => (
+              <div key={i} style={{ display: "flex", gap: 12, padding: "10px 14px", background: C.bg, borderRadius: 8, borderLeft: `3px solid ${item.color}` }}>
+                <div style={{ minWidth: 24, height: 24, borderRadius: 6, background: `${item.color}18`, color: item.color, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 12 }}>{item.step}</div>
+                <div>
+                  <div style={{ color: C.bright, fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{item.title}</div>
+                  <div style={{ color: C.dim, fontSize: 11 }}>{item.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </Sect>
       </Card>
     </div>
@@ -1844,7 +1822,7 @@ function IncidentTab() {
       })}
       {!active && (
         <Card><Sect title="Emergency Resources" icon={<I.ExternalLink />}>
-          {[["Google Recovery","https://accounts.google.com/signin/recovery"],["GitHub Support","https://support.github.com"],["AWS Incident","https://aws.amazon.com/security/incident-response/"],["HIBP","https://haveibeenpwned.com"],["Vercel Help","https://vercel.com/help"]].map(([n,u],i) => (
+          {[["Google Recovery","https://accounts.google.com/signin/recovery"],["GitHub Support","https://support.github.com"],["AWS Incident","https://aws.amazon.com/security/incident-response/"],["Pwned Passwords","https://haveibeenpwned.com/Passwords"],["Vercel Help","https://vercel.com/help"]].map(([n,u],i) => (
             <a key={i} href={u} target="_blank" rel="noopener" style={{ display:"flex", justifyContent:"space-between", padding:"8px 12px", background:C.bg, borderRadius:6, color:C.blue, textDecoration:"none", fontSize:12, marginBottom:4 }}>{n}<I.ExternalLink /></a>
           ))}
         </Sect></Card>
@@ -1881,7 +1859,7 @@ function HelpTab({ installPrompt, setInstallPrompt }) {
   const FAQ_ITEMS = [
     {
       q: "Is it advisable to add real-time virus, malware, or ransomware blocking?",
-      a: `AgentsLock is a web-based cybersecurity dashboard that runs in your browser. As a Progressive Web App (PWA), it operates within the browser sandbox and does not have the low-level system access required to intercept files, scan memory, or block executables in real time the way a native antivirus does.\n\nHowever, AgentsLock strongly complements your existing antivirus by:\n\n• Detecting if your credentials have been exposed in data breaches\n• Guiding you through device hardening (enabling Defender, BitLocker, Play Protect, etc.)\n• Monitoring your accounts for 2FA status and session anomalies\n• Providing an incident response playbook if you are compromised\n\nRecommendation: Keep a dedicated antivirus/anti-malware tool running on each device (Windows Defender, Malwarebytes, Bitdefender, etc.) and use AgentsLock as your security command centre to monitor, audit, and harden everything in one place.`
+      a: `AgentsLock is a web-based cybersecurity dashboard that runs in your browser. As a Progressive Web App (PWA), it operates within the browser sandbox and does not have the low-level system access required to intercept files, scan memory, or block executables in real time the way a native antivirus does.\n\nHowever, AgentsLock strongly complements your existing antivirus by:\n\n• Checking if your passwords have been exposed in data breaches (k-anonymity)\n• Guiding you through device hardening (enabling Defender, BitLocker, Play Protect, etc.)\n• Monitoring your accounts for 2FA status and session anomalies\n• Providing an incident response playbook if you are compromised\n\nRecommendation: Keep a dedicated antivirus/anti-malware tool running on each device (Windows Defender, Malwarebytes, Bitdefender, etc.) and use AgentsLock as your security command centre to monitor, audit, and harden everything in one place.`
     },
     {
       q: "Should AgentsLock include a firewall or intrusion detection system (IDS)?",
@@ -1889,7 +1867,7 @@ function HelpTab({ installPrompt, setInstallPrompt }) {
     },
     {
       q: "What makes AgentsLock different from antivirus software?",
-      a: `Antivirus software is reactive — it scans for known threats on your device. AgentsLock is proactive and holistic:\n\n• Breach detection: Checks if your email or passwords have been leaked\n• Password audit: Analyses strength and estimates crack time\n• Account security: Tracks 2FA status across all your accounts\n• Device hardening: 56 checks across Windows, Android, iOS, macOS, and browsers\n• Threat management: Log, track, and resolve security incidents\n• Incident response: Step-by-step emergency playbook\n• Monitoring: Real-time uptime checking for your websites\n• Reports: Export full security audit reports\n\nThink of AgentsLock as your personal security operations centre (SOC) — it doesn't replace your antivirus, it makes sure your entire security posture is covered.`
+      a: `Antivirus software is reactive — it scans for known threats on your device. AgentsLock is proactive and holistic:\n\n• Breach detection: Checks if your passwords have appeared in known data breaches\n• Password audit: Analyses strength and estimates crack time\n• Account security: Tracks 2FA status across all your accounts\n• Device hardening: 56 checks across Windows, Android, iOS, macOS, and browsers\n• Threat management: Log, track, and resolve security incidents\n• Incident response: Step-by-step emergency playbook\n• Monitoring: Real-time uptime checking for your websites\n• Reports: Export full security audit reports\n\nThink of AgentsLock as your personal security operations centre (SOC) — it doesn't replace your antivirus, it makes sure your entire security posture is covered.`
     },
     {
       q: "Is my data safe in AgentsLock?",
@@ -1952,7 +1930,7 @@ function HelpTab({ installPrompt, setInstallPrompt }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
                 { step: "1", title: "Run a Device Scan", desc: "Go to the Overview tab and tap \"Deep Scan Device\". AgentsLock will check your browser for privacy leaks, tracking cookies, WebRTC exposure, and permission issues — and auto-fix what it can.", color: C.green },
-                { step: "2", title: "Check for Breaches", desc: "Open the Breach Check tab. Enter your email to see if it has appeared in known data breaches, or test a password (it never leaves your device) to see if it has been compromised.", color: C.blue },
+                { step: "2", title: "Check for Breaches", desc: "Open the Breach Check tab. Test any password (it never leaves your device) to see if it has appeared in known data breaches. Uses k-anonymity for complete privacy.", color: C.purple },
                 { step: "3", title: "Harden Your Devices", desc: "Visit the Devices tab to go through 56 security checks for Windows, Android, iOS/macOS, Browser, and Network. Check off each item as you complete it.", color: C.cyan },
                 { step: "4", title: "Audit Your Accounts", desc: "Use the Accounts tab to track which services have two-factor authentication enabled. Review sessions, app passwords, and risk levels.", color: C.purple },
                 { step: "5", title: "Scan Websites", desc: "In the Web Scanner tab, enter any URL to check its SSL/TLS grade and security headers. Find out if your sites are properly protected.", color: C.orange },
@@ -2060,14 +2038,12 @@ function HelpTab({ installPrompt, setInstallPrompt }) {
 // TAB 11: SETTINGS (Phase 3)
 // ═══════════════════════════════════════════════════════════════════════════════
 function SettingsTab({ user, logout, setLegalPage, subscription }) {
-  const [hibpKey, setHibpKey] = useState(() => LS.get("hibpKey", ""));
   const [notifsOn, setNotifsOn] = useState(() => LS.get("notifs", true));
   const [autoScan, setAutoScan] = useState(() => LS.get("autoScan", false));
   const [dataCleared, setDataCleared] = useState(false);
 
-  const saveKey = () => { LS.set("hibpKey", hibpKey); };
   const clearAll = () => {
-    ["checks","accounts","threats","monitors","scanLog","irChecks","hibpKey"].forEach(k => LS.del(k));
+    ["checks","accounts","threats","monitors","scanLog","irChecks"].forEach(k => LS.del(k));
     setDataCleared(true); setTimeout(() => setDataCleared(false), 3000);
   };
 
@@ -2104,16 +2080,6 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
                 <Btn color={C.blue}><I.ExternalLink /> Manage</Btn>
               </a>
             )}
-          </div>
-        </Sect>
-      </Card>
-
-      <Card>
-        <Sect title="API Keys" icon={<I.Key />}>
-          <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>Add your HaveIBeenPwned API key for email breach checking.</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Input value={hibpKey} onChange={setHibpKey} placeholder="Enter HIBP API key..." type="password" icon={<I.Key />} style={{ flex: 1 }} />
-            <Btn onClick={saveKey} color={C.green}>Save</Btn>
           </div>
         </Sect>
       </Card>
@@ -2240,7 +2206,7 @@ function LegalOverlay({ page, onClose }) {
       {para("We do not sell, share, or distribute your personal data to third parties for marketing purposes. Data handling is governed by our Privacy Policy.")}
 
       {heading("7. Third-Party Services")}
-      {para("The Service may integrate with or reference third-party services including Firebase (Google), breach databases (Have I Been Pwned), SSL verification services, and others. We are not responsible for the availability, accuracy, or practices of these third-party services.")}
+      {para("The Service may integrate with or reference third-party services including Firebase (Google), Pwned Passwords (password breach checking), SSL verification services, and others. We are not responsible for the availability, accuracy, or practices of these third-party services.")}
       {para("Your use of third-party services is subject to their respective terms and policies.")}
 
       {heading("8. Privacy")}
@@ -2285,7 +2251,7 @@ function LegalOverlay({ page, onClose }) {
       {subH("1.1 Information You Provide")}
       <ul style={{ paddingLeft:20, marginBottom:12 }}>
         {listItem("Account registration details: email address, display name, password (hashed)")}
-        {listItem("Security scan data: URLs submitted for scanning, email addresses checked for breaches")}
+        {listItem("Security scan data: URLs submitted for scanning, password breach checks (hashed, k-anonymity)")}
         {listItem("Device hardening preferences and checklist progress")}
         {listItem("Account security configurations and 2FA settings you record")}
         {listItem("Monitoring URLs and uptime configurations")}
@@ -2343,7 +2309,7 @@ function LegalOverlay({ page, onClose }) {
       {para("The Service may share limited data with third-party services to provide functionality:")}
       <ul style={{ paddingLeft:20, marginBottom:12 }}>
         {listItem("Google Firebase — authentication and data storage")}
-        {listItem("Have I Been Pwned API — email/password breach checking (hashed data only)")}
+        {listItem("Pwned Passwords API — password breach checking (k-anonymity, only first 5 hash characters sent)")}
         {listItem("SSL Labs / security APIs — website security scanning")}
       </ul>
       {para("We do not sell, trade, or rent your personal information to third parties for marketing or advertising purposes.")}
@@ -2400,7 +2366,7 @@ function LegalOverlay({ page, onClose }) {
       {para("Specifically, we disclaim liability for:")}
       <ul style={{ paddingLeft:20, marginBottom:12 }}>
         {listItem("Any security breach, data loss, or unauthorised access that occurs despite using the Service")}
-        {listItem("The accuracy or completeness of breach detection results")}
+        {listItem("The accuracy or completeness of password breach detection results")}
         {listItem("The effectiveness of recommended security measures")}
         {listItem("Downtime or unavailability of monitoring services")}
         {listItem("Actions taken or not taken based on security scan results")}
@@ -2437,7 +2403,7 @@ function LegalOverlay({ page, onClose }) {
 
       {heading("Platform Features")}
       <ul style={{ paddingLeft:20, marginBottom:12 }}>
-        {listItem("Breach Detection — Check if your credentials have been exposed in known data breaches")}
+        {listItem("Password Breach Check — Check if your passwords have appeared in known data breaches using k-anonymity")}
         {listItem("Password Security — Analyse password strength with entropy calculations and generate secure passwords")}
         {listItem("Web Scanner — SSL/TLS grading and security header analysis for websites")}
         {listItem("Device Hardening — 56-point security checklist with platform-specific commands")}

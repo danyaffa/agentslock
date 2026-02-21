@@ -14,7 +14,6 @@
 - Interactive hardening checklist (56 items across 5 categories)
 
 ### Phase 2 — Real Security Tools (v2.0)
-- **Email Breach Checker** — HaveIBeenPwned API integration
 - **Password Breach Checker** — k-anonymity (password never leaves browser)
 - **Password Strength Analyzer** — entropy calculation, crack time estimation
 - **Secure Password Generator** — cryptographic randomness, configurable options
@@ -44,7 +43,6 @@
 | Feature | Status | Details |
 |---------|--------|---------|
 | Auth System | ✅ | Local signup/login |
-| Breach Check (email) | ✅ | HIBP API (key needed) |
 | Breach Check (password) | ✅ | Free k-anonymity |
 | Password Analyzer | ✅ | Entropy + crack time |
 | Password Generator | ✅ | Crypto-secure |
@@ -55,13 +53,13 @@
 | Uptime Monitoring | ✅ | Auto-check every 5 min |
 | Security Reports | ✅ | Export as .txt |
 | Incident Response | ✅ | 6-step protocol |
-| Settings & API Keys | ✅ | Preferences, data mgmt |
+| Settings | ✅ | Preferences, data mgmt |
 | PWA Support | ✅ | Installable, offline |
 | Data Persistence | ✅ | LocalStorage |
 
 ## 11 Tabs
 1. Overview — Dashboard with scores, threats, monitors
-2. Breach Check — Email and password breach checking
+2. Breach Check — Password breach checking (k-anonymity)
 3. Passwords — Strength analyzer + secure generator
 4. Web Scanner — SSL grade + security headers
 5. Devices — 56 hardening checks with commands
@@ -70,7 +68,7 @@
 8. Monitoring — Uptime monitoring with response graphs
 9. Reports — Exportable security audit reports
 10. Incident — Emergency response protocol
-11. Settings — Auth, API keys, preferences, data management
+11. Settings — Auth, preferences, data management
 
 ## Tech Stack
 - React 18 + Vite 6
