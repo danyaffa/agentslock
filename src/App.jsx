@@ -541,11 +541,14 @@ function applyProtection(fixId) {
   } catch {}
 }
 
-function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
+function OverviewTab({ checks, threats, setThreats, accounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
   const totalChecks = Object.values(DEVICE_CHECKS).flat().length;
   const doneChecks = Object.keys(checks).filter(k => checks[k]).length;
-  const score = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
+  const baseScore = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
   const activeThreats = threats.filter(t => t.status === "active").length;
+  // Penalize score for active threats (each active threat reduces score by up to 10 points)
+  const threatPenalty = Math.min(activeThreats * 10, 40);
+  const score = Math.max(0, baseScore - threatPenalty);
   const highRisk = accounts.filter(a => a.risk === "high").length;
   const onlineMonitors = monitors.filter(m => m.status === "up").length;
 
@@ -1014,15 +1017,23 @@ function OverviewTab({ checks, threats, accounts, scanLog, monitors, userName, s
       </Card>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <Card>
-          <Sect title="Recent Threats" icon={<I.Alert />}>
+        <Card glow={activeThreats > 0 ? C.red : undefined}>
+          <Sect title="Recent Threats" icon={<I.Alert />} right={activeThreats > 0 && (
+            <Btn onClick={() => { const n = threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t); setThreats(n); }} color={C.green} style={{ fontSize: 10, padding: "4px 12px" }}><I.Shield /> Block All Threats</Btn>
+          )}>
             {threats.length === 0 ? <div style={{ textAlign: "center", padding: 20, color: C.dim }}>All clear</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {activeThreats === 0 && threats.every(t => t.status === "blocked" || t.status === "resolved") && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: `${C.green}08`, borderRadius: 8, border: `1px solid ${C.greenBdr}` }}>
+                    <I.Shield s={14} style={{ color: C.green }} />
+                    <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>All threats blocked — you're protected</span>
+                  </div>
+                )}
                 {threats.slice(0, 4).map(t => (
-                  <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: C.bg, borderRadius: 8 }}>
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: t.status === "blocked" ? `${C.green}06` : t.status === "active" ? `${C.red}06` : C.bg, borderRadius: 8, border: `1px solid ${t.status === "blocked" ? C.greenBdr : t.status === "active" ? C.redBdr : C.border}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: sevColor(t.severity) }} />
-                      <span style={{ color: C.bright, fontWeight: 600, fontSize: 12 }}>{t.name}</span>
+                      {t.status === "blocked" ? <I.Check s={12} style={{ color: C.green }} /> : t.status === "active" ? <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.red, animation: "pulse 2s infinite" }} /> : <div style={{ width: 7, height: 7, borderRadius: "50%", background: sevColor(t.severity) }} />}
+                      <span style={{ color: t.status === "blocked" ? C.green : C.bright, fontWeight: 600, fontSize: 12 }}>{t.name}</span>
                       <span style={{ color: C.dim, fontSize: 11 }}>{"\u2192"} {t.target}</span>
                     </div>
                     <Badge color={t.status === "active" ? C.red : t.status === "blocked" ? C.green : C.orange}>{t.status}</Badge>
@@ -1252,35 +1263,88 @@ function ScannerTab({ addLog }) {
     try {
       const hostname = new URL(target).hostname; let sslGrade = "—";
       try { const r = await fetch(`https://api.ssllabs.com/api/v3/analyze?host=${hostname}&fromCache=on&maxAge=24`); if (r.ok) { const d = await r.json(); sslGrade = d.endpoints?.[0]?.grade || d.status || "Pending"; } } catch {}
-      setResult({ url: target, hostname, sslGrade, headers: SEC_HEADERS, time: new Date() });
-      addLog({ type: "WebScan", target: hostname, safe: sslGrade.startsWith?.("A") });
+
+      // Fetch real HTTP headers via proxy API
+      let liveHeaders = {};
+      let headerFetchOk = false;
+      try {
+        const r = await fetch("/api/scan-headers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: target }) });
+        if (r.ok) { const d = await r.json(); liveHeaders = d.headers || {}; headerFetchOk = true; }
+      } catch {}
+
+      // Build header results with real pass/fail status
+      const headerResults = SEC_HEADERS.map(h => {
+        const headerKey = h.name.toLowerCase();
+        const found = headerFetchOk ? !!liveHeaders[headerKey] : null;
+        const value = liveHeaders[headerKey] || null;
+        return { ...h, found, value };
+      });
+
+      const presentCount = headerResults.filter(h => h.found === true).length;
+      const missingCount = headerResults.filter(h => h.found === false).length;
+      const allPresent = headerFetchOk && missingCount === 0;
+
+      setResult({ url: target, hostname, sslGrade, headers: headerResults, headerFetchOk, presentCount, missingCount, time: new Date() });
+      addLog({ type: "WebScan", target: hostname, safe: allPresent && sslGrade.startsWith?.("A") });
     } catch (e) { setResult({ error: e.message }); }
     setScanning(false);
   };
   const exportScan = () => {
     if (!result || result.error) return;
     const lines = [`AGENTSLOCK — WEB SCANNER REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `URL: ${result.url}`, `HOSTNAME: ${result.hostname}`, `SSL/TLS GRADE: ${result.sslGrade}`, `SCANNED: ${result.time?.toLocaleString()}`, ``, `SECURITY HEADERS ANALYSIS:`, `-`.repeat(30)];
-    SEC_HEADERS.forEach(h => lines.push(`[${h.sev.toUpperCase()}] ${h.name}`, `  ${h.desc}`, `  Recommended: ${h.rec}`, ``));
+    result.headers.forEach(h => {
+      const status = h.found === true ? "PASS" : h.found === false ? "FAIL" : "N/A";
+      lines.push(`[${status}] [${h.sev.toUpperCase()}] ${h.name}`, `  ${h.desc}`, h.value ? `  Value: ${h.value}` : `  Recommended: ${h.rec}`, ``);
+    });
     downloadReport("web-scan", lines.join("\n"));
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Card><Sect title="Website Security Scanner" icon={<I.Globe />}>
-        <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>SSL/TLS grade, security headers analysis, and recommendations.</div>
+        <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>SSL/TLS grade and live security header validation. Headers are fetched from the actual server response.</div>
         <div style={{ display: "flex", gap: 8 }}><Input value={url} onChange={setUrl} placeholder="example.com" icon={<I.Search />} style={{ flex: 1 }} /><Btn onClick={scan} disabled={scanning}>{scanning ? "Scanning..." : "Scan"}</Btn>{result && !result.error && <ReportBtn onClick={exportScan} />}</div>
       </Sect></Card>
       {result && !result.error && (<>
-        <Card glow={C.green}><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          {[["SSL Grade", result.sslGrade, result.sslGrade?.startsWith?.("A") ? C.green : C.orange], ["Host", result.hostname, C.bright], ["Headers", SEC_HEADERS.length+"", C.orange]].map(([l,v,c],i) => (
-            <div key={i} style={{ padding: 14, background: C.bg, borderRadius: 8, textAlign: "center" }}><div style={{ fontSize: 9, color: C.dim, textTransform: "uppercase", marginBottom: 4 }}>{l}</div><div style={{ fontSize: l==="Host"?13:26, fontWeight: 700, color: c }}>{v}</div></div>
+        <Card glow={result.headerFetchOk && result.missingCount === 0 ? C.green : result.missingCount > 0 ? C.red : C.orange}><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
+          {[
+            ["SSL Grade", result.sslGrade, result.sslGrade?.startsWith?.("A") ? C.green : C.orange],
+            ["Host", result.hostname, C.bright],
+            ["Passed", result.headerFetchOk ? result.presentCount + "/" + SEC_HEADERS.length : "N/A", result.presentCount === SEC_HEADERS.length ? C.green : result.presentCount > 0 ? C.orange : C.red],
+            ["Missing", result.headerFetchOk ? result.missingCount + "" : "N/A", result.missingCount === 0 ? C.green : C.red],
+          ].map(([l,v,c],i) => (
+            <div key={i} style={{ padding: 14, background: C.bg, borderRadius: 8, textAlign: "center" }}><div style={{ fontSize: 9, color: C.dim, textTransform: "uppercase", marginBottom: 4 }}>{l}</div><div style={{ fontSize: l==="Host"?13:22, fontWeight: 700, color: c }}>{v}</div></div>
           ))}
         </div></Card>
-        <Card><Sect title="Security Headers" icon={<I.FileText />}>
-          {result.headers.map((h,i) => <div key={i} style={{ padding:"10px 14px", background:C.bg, borderRadius:8, marginBottom:6, border:`1px solid ${C.border}` }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}><span style={{ color:C.bright, fontWeight:600, fontSize:12 }}>{h.name}</span><Badge color={sevColor(h.sev)}>{h.sev}</Badge></div>
-            <div style={{ fontSize:11, color:C.dim }}>{h.desc}</div>
-            <div style={{ fontSize:10, color:C.cyan, fontFamily:"'Fira Code', monospace", marginTop:4, padding:"4px 8px", background:`${C.cyan}08`, borderRadius:4 }}>{h.name}: {h.rec}</div>
-          </div>)}
+        {!result.headerFetchOk && (
+          <Card><div style={{ padding: "10px 14px", background: `${C.orange}10`, borderRadius: 8, border: `1px solid ${C.orangeBdr}` }}>
+            <div style={{ fontSize: 12, color: C.orange, fontWeight: 600, marginBottom: 4 }}>Header fetch unavailable</div>
+            <div style={{ fontSize: 11, color: C.dim }}>The proxy API could not reach the target server. Showing recommended headers below. Deploy the <span style={{ color: C.cyan, fontFamily: "'Fira Code', monospace" }}>/api/scan-headers</span> endpoint to enable live validation.</div>
+          </div></Card>
+        )}
+        <Card><Sect title="Security Headers" icon={<I.FileText />} right={result.headerFetchOk && (
+          <Badge color={result.missingCount === 0 ? C.green : C.red}>{result.missingCount === 0 ? "All Present" : `${result.missingCount} Missing`}</Badge>
+        )}>
+          {result.headers.map((h,i) => {
+            const passed = h.found === true;
+            const failed = h.found === false;
+            const borderColor = passed ? C.greenBdr : failed ? C.redBdr : C.border;
+            const bgColor = passed ? `${C.green}06` : failed ? `${C.red}06` : C.bg;
+            return (
+              <div key={i} style={{ padding:"10px 14px", background:bgColor, borderRadius:8, marginBottom:6, border:`1px solid ${borderColor}` }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                  {passed ? <I.Check s={14} style={{ color: C.green }} /> : failed ? <I.X s={14} style={{ color: C.red }} /> : null}
+                  <span style={{ color: passed ? C.green : failed ? C.red : C.bright, fontWeight:600, fontSize:12 }}>{h.name}</span>
+                  <Badge color={passed ? C.green : failed ? sevColor(h.sev) : sevColor(h.sev)}>{passed ? "present" : failed ? "missing" : h.sev}</Badge>
+                </div>
+                <div style={{ fontSize:11, color:C.dim }}>{h.desc}</div>
+                {passed && h.value ? (
+                  <div style={{ fontSize:10, color:C.green, fontFamily:"'Fira Code', monospace", marginTop:4, padding:"4px 8px", background:`${C.green}08`, borderRadius:4, wordBreak:"break-all" }}>{h.name}: {h.value}</div>
+                ) : (
+                  <div style={{ fontSize:10, color: failed ? C.red : C.cyan, fontFamily:"'Fira Code', monospace", marginTop:4, padding:"4px 8px", background: failed ? `${C.red}08` : `${C.cyan}08`, borderRadius:4 }}>{failed ? "Missing — " : ""}Recommended: {h.name}: {h.rec}</div>
+                )}
+              </div>
+            );
+          })}
         </Sect></Card>
       </>)}
       {result?.error && <Card glow={C.red}><div style={{ color: C.red }}>Error: {result.error}</div></Card>}
@@ -1468,7 +1532,9 @@ function AccountTab({ accounts, setAccounts }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function ThreatTab({ threats, setThreats }) {
   const [filter, setFilter] = useState("all");
+  const activeCount = threats.filter(t => t.status === "active").length;
   const filtered = filter === "all" ? threats : threats.filter(t => t.status === filter);
+  const blockAll = () => { setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t)); };
   const exportThreats = () => {
     const lines = [`AGENTSLOCK — THREAT REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `ACTIVE: ${threats.filter(t=>t.status==="active").length}`, `BLOCKED: ${threats.filter(t=>t.status==="blocked").length}`, `INVESTIGATING: ${threats.filter(t=>t.status==="investigating").length}`, `RESOLVED: ${threats.filter(t=>t.status==="resolved").length}`, ``];
     threats.forEach(t => lines.push(`[${t.status.toUpperCase()}] ${t.name}`, `  Severity: ${t.severity}`, `  Target: ${t.target}`, `  Time: ${t.time}`, `  ${t.desc || ""}`, ``));
@@ -1476,21 +1542,46 @@ function ThreatTab({ threats, setThreats }) {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportThreats} /></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {activeCount > 0 ? (
+          <Btn onClick={blockAll} color={C.green} style={{ fontSize: 12, padding: "8px 20px" }}><I.Shield /> Block All Threats ({activeCount})</Btn>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <I.Shield s={16} style={{ color: C.green }} />
+            <span style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>All threats blocked</span>
+          </div>
+        )}
+        <ReportBtn onClick={exportThreats} />
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-        <Stat label="Active" value={threats.filter(t=>t.status==="active").length} color={C.red} />
+        <Stat label="Active" value={activeCount} color={activeCount > 0 ? C.red : C.green} />
         <Stat label="Blocked" value={threats.filter(t=>t.status==="blocked").length} color={C.green} />
         <Stat label="Investigating" value={threats.filter(t=>t.status==="investigating").length} color={C.orange} />
         <Stat label="Resolved" value={threats.filter(t=>t.status==="resolved").length} color={C.blue} />
       </div>
       <div style={{ display: "flex", gap: 6 }}>{["all","active","blocked","investigating","resolved"].map(f => <Btn key={f} onClick={()=>setFilter(f)} color={filter===f?C.green:C.dim} style={{ fontSize:10, padding:"5px 10px", textTransform:"capitalize" }}>{f}</Btn>)}</div>
-      {filtered.length===0 ? <Card><div style={{ textAlign:"center", padding:30, color:C.dim }}>Empty</div></Card> : filtered.map(t => (
-        <Card key={t.id} glow={t.status==="active"?C.red:undefined}>
+      {activeCount === 0 && threats.length > 0 && filter === "all" && (
+        <Card glow={C.green}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+            <I.Shield s={18} style={{ color: C.green }} />
+            <div>
+              <div style={{ color: C.green, fontWeight: 600, fontSize: 13 }}>All clear — no active threats</div>
+              <div style={{ color: C.dim, fontSize: 11, marginTop: 2 }}>All threats have been blocked or resolved. Your devices are protected.</div>
+            </div>
+          </div>
+        </Card>
+      )}
+      {filtered.length===0 ? <Card><div style={{ textAlign:"center", padding:30, color:C.dim }}>{filter === "active" ? "No active threats — you're protected" : "Empty"}</div></Card> : filtered.map(t => (
+        <Card key={t.id} glow={t.status==="active"?C.red:t.status==="blocked"?C.green:undefined}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><div style={{ width:8, height:8, borderRadius:"50%", background:sevColor(t.severity) }}/><span style={{ color:C.bright, fontWeight:700, fontSize:14 }}>{t.name}</span><Badge color={sevColor(t.severity)}>{t.severity}</Badge></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                {t.status === "blocked" ? <I.Check s={14} style={{ color: C.green }} /> : <div style={{ width:8, height:8, borderRadius:"50%", background: t.status === "active" ? C.red : sevColor(t.severity), animation: t.status === "active" ? "pulse 2s infinite" : "none" }}/>}
+                <span style={{ color: t.status === "blocked" ? C.green : C.bright, fontWeight:700, fontSize:14 }}>{t.name}</span>
+                <Badge color={sevColor(t.severity)}>{t.severity}</Badge>
+              </div>
               <div style={{ color:C.dim, fontSize:12 }}>Target: {t.target} · {t.time}</div>
-              {t.desc && <div style={{ color:C.text, fontSize:12, marginTop:6 }}>{t.desc}</div>}
+              {t.desc && <div style={{ color: t.status === "blocked" ? `${C.green}cc` : C.text, fontSize:12, marginTop:6 }}>{t.status === "blocked" ? "Blocked — " : ""}{t.desc}</div>}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <Badge color={t.status==="active"?C.red:t.status==="blocked"?C.green:t.status==="investigating"?C.orange:C.blue}>{t.status}</Badge>
@@ -3184,9 +3275,13 @@ export default function App() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <span style={{ fontFamily:"'Fira Code'", fontSize:12, color:C.dim }}>{now.toLocaleTimeString()}</span>
-          {activeThreats > 0 && (
+          {activeThreats > 0 ? (
             <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", background:C.redDim, border:`1px solid ${C.redBdr}`, borderRadius:6, animation:"pulse 2s infinite" }}>
               <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:11, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
+            </div>
+          ) : (
+            <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", background:C.greenDim, border:`1px solid ${C.greenBdr}`, borderRadius:6 }}>
+              <I.Shield s={12} style={{ color:C.green }}/><span style={{ color:C.green, fontSize:11, fontWeight:600 }}>SECURED</span>
             </div>
           )}
           <button onClick={() => setShowInstallAll(true)}
@@ -3208,7 +3303,7 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} setThreats={setThreatsAndSave} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
