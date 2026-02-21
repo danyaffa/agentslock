@@ -114,32 +114,37 @@ const downloadReport = (name, content) => {
 };
 const ReportBtn = ({ onClick }) => <Btn onClick={onClick} color={C.blue} style={{ fontSize: 10 }}><I.Download /> Download Report</Btn>;
 
-// ─── Session Guard (idle timeout) ───────────────────────────────────────────
+// ─── Session Guard (idle screen) ────────────────────────────────────────────
 const SESSION_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 // ─── Firebase Auth Hook ──────────────────────────────────────────────────────
 function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [idle, setIdle] = useState(false);
   useEffect(() => {
     const unsub = onAuth((u) => { setUser(u); setLoading(false); });
     return unsub;
   }, []);
-  // Idle timeout — auto-logout after 30 minutes of inactivity
+  // Idle detection — show idle screen after 30 minutes of inactivity
   useEffect(() => {
     if (!user) return;
     let lastActivity = Date.now();
-    const touch = () => { lastActivity = Date.now(); };
+    const touch = () => {
+      lastActivity = Date.now();
+      if (idle) setIdle(false);
+    };
     const events = ["mousedown", "keydown", "scroll", "touchstart"];
     events.forEach(e => window.addEventListener(e, touch, { passive: true }));
     const idleCheck = setInterval(() => {
-      if (Date.now() - lastActivity > SESSION_IDLE_TIMEOUT) { logOut(); setUser(null); }
-    }, 60000);
+      if (!idle && Date.now() - lastActivity > SESSION_IDLE_TIMEOUT) setIdle(true);
+    }, 30000);
     return () => {
       events.forEach(e => window.removeEventListener(e, touch));
       clearInterval(idleCheck);
     };
-  }, [user]);
+  }, [user, idle]);
+  const wake = () => setIdle(false);
   const firebaseAuthError = (e) => {
     const code = e.code || "";
     const map = {
@@ -165,7 +170,7 @@ function useAuth() {
     } catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
   const doLogout = async () => { await logOut(); };
-  return { user, loading, login: doLogin, signup: doSignup, logout: doLogout };
+  return { user, loading, idle, wake, login: doLogin, signup: doSignup, logout: doLogout };
 }
 
 // ─── Crypto Utils ────────────────────────────────────────────────────────────
@@ -3048,10 +3053,83 @@ const TABS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// IDLE SCREEN — Glanceable status when session is idle
+// ═══════════════════════════════════════════════════════════════════════════════
+function IdleScreen({ threats, userName, onWake }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+  const critical = threats.filter(t => t.status === "active" && (t.severity === "critical" || t.severity === "high")).length;
+  const active = threats.filter(t => t.status === "active").length;
+  const isSafe = active === 0;
+
+  return (
+    <div onClick={onWake} style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", cursor: "pointer", userSelect: "none" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Fira+Code:wght@400;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        @keyframes pulse-glow{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}
+        @keyframes beacon{0%{box-shadow:0 0 0 0 var(--glow)}70%{box-shadow:0 0 0 20px transparent}100%{box-shadow:0 0 0 0 transparent}}
+      `}</style>
+
+      {/* Shield icon */}
+      <div style={{ width: 72, height: 72, borderRadius: 18, background: `linear-gradient(135deg, ${isSafe ? C.green : C.red}, ${isSafe ? C.blue : C.orange})`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 28, boxShadow: `0 0 40px ${isSafe ? C.green : C.red}30` }}>
+        <I.Shield s={36} style={{ color: "#fff" }} />
+      </div>
+
+      {/* Status light */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+        <div style={{
+          "--glow": isSafe ? C.green + "60" : C.red + "60",
+          width: 18, height: 18, borderRadius: "50%",
+          background: isSafe ? C.green : C.red,
+          animation: isSafe ? "none" : "beacon 2s infinite",
+          boxShadow: `0 0 12px ${isSafe ? C.green : C.red}50`,
+        }} />
+        <span style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 22, letterSpacing: "0.08em", color: isSafe ? C.green : C.red }}>
+          {isSafe ? "ALL SAFE" : "TAKE ACTION"}
+        </span>
+        <div style={{
+          "--glow": isSafe ? C.green + "60" : C.red + "60",
+          width: 18, height: 18, borderRadius: "50%",
+          background: isSafe ? C.green : C.red,
+          animation: isSafe ? "none" : "beacon 2s infinite",
+          boxShadow: `0 0 12px ${isSafe ? C.green : C.red}50`,
+        }} />
+      </div>
+
+      {/* Threat count (only if not safe) */}
+      {!isSafe && (
+        <div style={{ padding: "8px 20px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 8, marginBottom: 16, animation: "pulse-glow 2s infinite" }}>
+          <span style={{ color: C.red, fontSize: 13, fontWeight: 600 }}>
+            {critical > 0 ? `${critical} CRITICAL` : ""}{critical > 0 && active > critical ? " + " : ""}{active > critical ? `${active - critical} active` : ""} threat{active > 1 ? "s" : ""} detected
+          </span>
+        </div>
+      )}
+
+      {/* Clock and user */}
+      <div style={{ color: C.dim, fontSize: 36, fontFamily: "'Fira Code'", fontWeight: 400, marginBottom: 8 }}>
+        {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      </div>
+      <div style={{ color: C.dim, fontSize: 12, marginBottom: 32 }}>
+        {now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.dim, fontSize: 12, marginBottom: 8 }}>
+        <I.User s={14} /><span>{userName}</span>
+      </div>
+
+      <div style={{ color: C.dim, fontSize: 11, opacity: 0.5 }}>
+        Tap or press any key to resume
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
-  const { user, loading, login, signup, logout } = useAuth();
+  const { user, loading, idle, wake, login, signup, logout } = useAuth();
   const [tab, setTab] = useState("overview");
   const [checks, setChecks] = useState(DEFAULT_CHECKS);
   const [threats, setThreats] = useState(INIT_THREATS);
@@ -3245,6 +3323,9 @@ export default function App() {
 
   const activeThreats = threats.filter(t => t.status === "active").length;
   const userName = user.displayName || user.email?.split("@")[0] || "User";
+
+  // Idle screen — glanceable status when session is inactive
+  if (idle) return <IdleScreen threats={threats} userName={userName} onWake={wake} />;
 
   return (
     <div style={{ fontFamily: "'Space Grotesk', 'Segoe UI', sans-serif", background: C.bg, color: C.text, minHeight: "100vh" }}>
