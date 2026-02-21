@@ -144,17 +144,19 @@ function useAuth() {
       if (promoCode && u) {
         const validPromo = import.meta.env.VITE_PROMO_CODE;
         if (validPromo && promoCode.toLowerCase() === validPromo.trim().toLowerCase()) {
+          const subData = {
+            status: "active",
+            plan: "promo",
+            amount: 0,
+            currency: "USD",
+            subscribedAt: new Date().toISOString(),
+            provider: "promo_code",
+            promoCode: promoCode,
+          };
           try {
-            await saveSubscription(u.uid, {
-              status: "active",
-              plan: "promo",
-              amount: 0,
-              currency: "USD",
-              subscribedAt: new Date().toISOString(),
-              provider: "promo_code",
-              promoCode: promoCode,
-            });
-          } catch (_) { /* non-fatal — subscription save failed but login succeeded */ }
+            await saveSubscription(u.uid, subData);
+          } catch (_) { /* non-fatal */ }
+          return { ok: true, subscription: subData };
         }
       }
       return { ok: true };
@@ -3375,8 +3377,16 @@ export default function App() {
   // Loading screen
   if (loading) return <LoadingScreen message="Loading AgentsLock..." />;
 
-  // Wrap signup to capture promo subscription immediately (fixes race condition
-  // where onAuthStateChanged fires before Firestore write completes)
+  // Wrap login & signup to capture promo subscription immediately (fixes race
+  // condition where onAuthStateChanged fires before Firestore write completes)
+  const handleLogin = async (email, pass, promoCode) => {
+    const r = await login(email, pass, promoCode);
+    if (r.ok && r.subscription) {
+      setSubscription(r.subscription);
+      setSubLoaded(true);
+    }
+    return r;
+  };
   const handleSignup = async (email, name, pass, promoCode) => {
     const r = await signup(email, name, pass, promoCode);
     if (r.ok && r.subscription) {
@@ -3386,7 +3396,7 @@ export default function App() {
     return r;
   };
 
-  if (!user) { const ts = LS.get("threatStatus", { safe: true, active: 0 }); return <AuthScreen onLogin={login} onSignup={handleSignup} onGoogleLogin={googleLogin} threatStatus={ts} />; }
+  if (!user) { const ts = LS.get("threatStatus", { safe: true, active: 0 }); return <AuthScreen onLogin={handleLogin} onSignup={handleSignup} onGoogleLogin={googleLogin} threatStatus={ts} />; }
 
   // Admin bypass — developer always gets full access (no PayPal required)
   const isAdmin = import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
