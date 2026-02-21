@@ -1468,7 +1468,7 @@ function DeviceTab({ checks, setChecks }) {
       </div>
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div><h3 style={{ margin: 0, fontFamily: "'Chakra Petch', sans-serif", fontSize: 15, color: C.bright }}>{DEVICE_META[active].name} Hardening</h3><div style={{ fontSize: 11, color: C.dim }}>{done}/{items.length} ({pct}%)</div></div>
+          <div><h3 style={{ margin: 0, fontFamily: "'Chakra Petch', sans-serif", fontSize: 15, color: C.bright }}>{DEVICE_META[active].name} Hardening {pct === 100 && <Badge color={C.green}>All Secured</Badge>}</h3><div style={{ fontSize: 11, color: pct === 100 ? C.green : C.dim }}>{done}/{items.length} ({pct}%){pct === 100 ? " — All threats addressed" : ""}</div></div>
           <div style={{ width: 200 }}><Progress value={pct} color={pct===100?C.green:pct>50?C.orange:C.red} h={8} /></div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1477,7 +1477,7 @@ function DeviceTab({ checks, setChecks }) {
               style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", background: checks[c.id] ? `${C.green}06` : C.bg, borderRadius: 8, border: `1px solid ${checks[c.id] ? C.greenBdr : C.border}`, cursor: "pointer" }}>
               <div style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, marginTop: 1, border: `2px solid ${checks[c.id] ? C.green : "#2a2d3e"}`, background: checks[c.id] ? C.green : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "#0a0b0f" }}>{checks[c.id] && <I.Check s={12}/>}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}><span style={{ color: checks[c.id] ? C.dim : C.bright, fontWeight: 500, fontSize: 12, textDecoration: checks[c.id] ? "line-through" : "none" }}>{c.text}</span><Badge color={sevColor(c.sev)}>{c.sev}</Badge></div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}><span style={{ color: checks[c.id] ? C.dim : C.bright, fontWeight: 500, fontSize: 12, textDecoration: checks[c.id] ? "line-through" : "none" }}>{c.text}</span><Badge color={checks[c.id] ? C.green : sevColor(c.sev)}>{checks[c.id] ? "secured" : c.sev}</Badge></div>
                 <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>📖 {c.guide}</div>
                 {c.cmd && <div style={{ fontSize: 10, color: C.cyan, fontFamily: "'Fira Code', monospace", marginTop: 4, padding: "4px 8px", background: `${C.cyan}08`, borderRadius: 4 }}>$ {c.cmd}</div>}
               </div>
