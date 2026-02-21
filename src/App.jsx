@@ -97,6 +97,7 @@ const C = {
   cyan: "#06b6d4", cyanDim: "#06b6d418", cyanBdr: "#06b6d430",
 };
 const sevColor = (s) => ({ critical: C.red, high: C.red, medium: C.orange, low: C.green }[s] || C.dim);
+const accountRisk = (a) => (!a.twoFA && !a.appPw) ? "high" : (!a.twoFA || !a.appPw) ? "medium" : "low";
 
 // ─── LocalStorage (fallback cache) ───────────────────────────────────────────
 const LS = {
@@ -630,7 +631,7 @@ function applyProtection(fixId) {
   } catch {}
 }
 
-function OverviewTab({ checks, threats, setThreats, accounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
+function OverviewTab({ checks, threats, setThreats, accounts, setAccounts, scanLog, monitors, userName, setTab, addLog, deviceCleaned, setDeviceCleaned }) {
   const totalChecks = Object.values(DEVICE_CHECKS).flat().length;
   const doneChecks = Object.keys(checks).filter(k => checks[k]).length;
   const baseScore = totalChecks > 0 ? Math.round((doneChecks / totalChecks) * 100) : 0;
@@ -638,7 +639,7 @@ function OverviewTab({ checks, threats, setThreats, accounts, scanLog, monitors,
   // Penalize score for active threats (each active threat reduces score by up to 10 points)
   const threatPenalty = Math.min(activeThreats * 10, 40);
   const score = Math.max(0, baseScore - threatPenalty);
-  const highRisk = accounts.filter(a => a.risk === "high").length;
+  const highRisk = accounts.filter(a => accountRisk(a) === "high").length;
   const onlineMonitors = monitors.filter(m => m.status === "up").length;
 
   // ── Device Scan State ──
@@ -1108,7 +1109,7 @@ function OverviewTab({ checks, threats, setThreats, accounts, scanLog, monitors,
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Card glow={activeThreats > 0 ? C.red : undefined}>
           <Sect title="Recent Threats" icon={<I.Alert />} right={activeThreats > 0 && (
-            <Btn onClick={() => { const n = threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t); setThreats(n); }} color={C.green} style={{ fontSize: 10, padding: "4px 12px" }}><I.Shield /> Block All Threats</Btn>
+            <Btn onClick={() => { const n = threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t); setThreats(n); if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" }))); }} color={C.green} style={{ fontSize: 10, padding: "4px 12px" }}><I.Shield /> Block All Threats</Btn>
           )}>
             {threats.length === 0 ? <div style={{ textAlign: "center", padding: 20, color: C.dim }}>All clear</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1561,36 +1562,49 @@ function DeviceTab({ checks, setChecks }) {
 // TAB 6: ACCOUNTS
 // ═══════════════════════════════════════════════════════════════════════════════
 function AccountTab({ accounts, setAccounts }) {
-  const toggle = (id, f) => { const n = accounts.map(a => a.id===id?{...a,[f]:!a[f]}:a); setAccounts(n); };
+  const toggle = (id, f) => { const n = accounts.map(a => { const u = a.id===id?{...a,[f]:!a[f]}:a; return {...u, risk: accountRisk(u)}; }); setAccounts(n); };
+  const secureAll = () => { setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" }))); };
+  const unsecured = accounts.filter(a => !a.twoFA || !a.appPw).length;
   const exportAccounts = () => {
     const twoFA = accounts.filter(a=>a.twoFA).length;
-    const lines = [`AGENTSLOCK — ACCOUNT SECURITY AUDIT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `TOTAL ACCOUNTS: ${accounts.length}`, `2FA ENABLED: ${twoFA}/${accounts.length} (${Math.round((twoFA/accounts.length)*100)}%)`, `HIGH RISK: ${accounts.filter(a=>a.risk==="high").length}`, ``];
-    accounts.forEach(a => lines.push(`${a.name}`, `  2FA: ${a.twoFA ? "ON (" + a.method + ")" : "OFF"}`, `  App Password: ${a.appPw ? "Yes" : "No"}`, `  Sessions: ${a.sessions}`, `  Risk: ${a.risk.toUpperCase()}`, `  Last Review: ${a.lastReview}`, ``));
+    const risk = (a) => accountRisk(a);
+    const lines = [`AGENTSLOCK — ACCOUNT SECURITY AUDIT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `TOTAL ACCOUNTS: ${accounts.length}`, `2FA ENABLED: ${twoFA}/${accounts.length} (${Math.round((twoFA/accounts.length)*100)}%)`, `HIGH RISK: ${accounts.filter(a=>risk(a)==="high").length}`, ``];
+    accounts.forEach(a => lines.push(`${a.name}`, `  2FA: ${a.twoFA ? "ON (" + a.method + ")" : "OFF"}`, `  App Password: ${a.appPw ? "Yes" : "No"}`, `  Sessions: ${a.sessions}`, `  Risk: ${risk(a).toUpperCase()}`, `  Last Review: ${a.lastReview}`, ``));
     downloadReport("accounts", lines.join("\n"));
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}><ReportBtn onClick={exportAccounts} /></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {unsecured > 0 ? (
+          <Btn onClick={secureAll} color={C.green} style={{ fontSize: 12, padding: "8px 20px" }}><I.Shield /> Secure All Accounts ({unsecured})</Btn>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <I.Shield s={16} style={{ color: C.green }} />
+            <span style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>All accounts secured</span>
+          </div>
+        )}
+        <ReportBtn onClick={exportAccounts} />
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <Stat label="Total" value={accounts.length} color={C.bright} />
         <Stat label="2FA On" value={accounts.filter(a=>a.twoFA).length} color={C.green} sub={`${accounts.filter(a=>!a.twoFA).length} without`} />
-        <Stat label="High Risk" value={accounts.filter(a=>a.risk==="high").length} color={accounts.filter(a=>a.risk==="high").length>0?C.red:C.green} />
+        <Stat label="High Risk" value={accounts.filter(a=>accountRisk(a)==="high").length} color={accounts.filter(a=>accountRisk(a)==="high").length>0?C.red:C.green} />
       </div>
-      {accounts.map(a => (
-        <Card key={a.id} glow={a.risk==="high"?C.red:undefined}>
+      {accounts.map(a => { const r = accountRisk(a); return (
+        <Card key={a.id} glow={r==="high"?C.red:undefined}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 22 }}>{a.icon}</span>
               <div><div style={{ color: C.bright, fontWeight: 600, fontSize: 14 }}>{a.name}</div><div style={{ color: C.dim, fontSize: 11 }}>{a.method} · {a.sessions} session(s) · {a.lastReview}</div></div>
             </div>
-            <Badge color={a.risk==="high"?C.red:a.risk==="medium"?C.orange:C.green}>{a.risk}</Badge>
+            <Badge color={r==="high"?C.red:r==="medium"?C.orange:C.green}>{r}</Badge>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <Btn onClick={()=>toggle(a.id,"twoFA")} color={a.twoFA?C.green:C.red} style={{ fontSize:11 }}>{a.twoFA?<I.Check/>:<I.X/>} 2FA</Btn>
             <Btn onClick={()=>toggle(a.id,"appPw")} color={a.appPw?C.green:C.orange} style={{ fontSize:11 }}>{a.appPw?<I.Check/>:<I.X/>} App PW</Btn>
           </div>
         </Card>
-      ))}
+      ); })}
     </div>
   );
 }
@@ -1598,11 +1612,12 @@ function AccountTab({ accounts, setAccounts }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB 7: THREATS
 // ═══════════════════════════════════════════════════════════════════════════════
-function ThreatTab({ threats, setThreats }) {
+function ThreatTab({ threats, setThreats, accounts, setAccounts }) {
   const [filter, setFilter] = useState("all");
   const activeCount = threats.filter(t => t.status === "active").length;
   const filtered = filter === "all" ? threats : threats.filter(t => t.status === filter);
-  const blockAll = () => { setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t)); };
+  const secureAllAccounts = () => { if (setAccounts && accounts) setAccounts(accounts.map(a => ({ ...a, twoFA: true, appPw: true, method: a.method === "None" ? "Authenticator App" : a.method, lastReview: "Just now", risk: "low" }))); };
+  const blockAll = () => { setThreats(threats.map(t => t.status === "active" ? { ...t, status: "blocked" } : t)); secureAllAccounts(); };
   const exportThreats = () => {
     const lines = [`AGENTSLOCK — THREAT REPORT`, `Generated: ${new Date().toISOString()}`, `${"=".repeat(50)}`, ``, `ACTIVE: ${threats.filter(t=>t.status==="active").length}`, `BLOCKED: ${threats.filter(t=>t.status==="blocked").length}`, `INVESTIGATING: ${threats.filter(t=>t.status==="investigating").length}`, `RESOLVED: ${threats.filter(t=>t.status==="resolved").length}`, ``];
     threats.forEach(t => lines.push(`[${t.status.toUpperCase()}] ${t.name}`, `  Severity: ${t.severity}`, `  Target: ${t.target}`, `  Time: ${t.time}`, `  ${t.desc || ""}`, ``));
@@ -1774,11 +1789,11 @@ function ReportTab({ checks, threats, accounts, monitors, scanLog }) {
   const critChecks = Object.values(DEVICE_CHECKS).flat().filter(c => c.sev === "critical");
   const critDone = critChecks.filter(c => checks[c.id]).length;
   const twoFACount = accounts.filter(a => a.twoFA).length;
-  const highRisk = accounts.filter(a => a.risk === "high").length;
+  const highRisk = accounts.filter(a => accountRisk(a) === "high").length;
   const upMonitors = monitors.filter(m => m.status === "up").length;
 
   const exportReport = () => {
-    const report = `AGENTSLOCK — FULL SECURITY REPORT\nGenerated: ${new Date().toISOString()}\n${"=".repeat(50)}\n\nSECURITY SCORE: ${score}/100\n\nHARDENING: ${doneChecks}/${totalChecks} complete\n  Critical: ${critDone}/${critChecks.length}\n\nACCOUNTS: ${accounts.length} total\n  2FA Enabled: ${twoFACount}/${accounts.length}\n  High Risk: ${highRisk}\n\nTHREATS:\n  Active: ${threats.filter(t=>t.status==="active").length}\n  Blocked: ${threats.filter(t=>t.status==="blocked").length}\n  Resolved: ${threats.filter(t=>t.status==="resolved").length}\n\nMONITORS: ${monitors.length} sites\n  Online: ${upMonitors}\n\nSCAN HISTORY: ${scanLog.length} total scans\n\n${"=".repeat(50)}\nINCOMPLETE CRITICAL TASKS:\n${critChecks.filter(c=>!checks[c.id]).map(c=>`  [ ] ${c.text}`).join("\n")}\n\nHIGH RISK ACCOUNTS:\n${accounts.filter(a=>a.risk==="high").map(a=>`  [!] ${a.name} - ${a.twoFA?"2FA on":"NO 2FA"}`).join("\n")}\n`;
+    const report = `AGENTSLOCK — FULL SECURITY REPORT\nGenerated: ${new Date().toISOString()}\n${"=".repeat(50)}\n\nSECURITY SCORE: ${score}/100\n\nHARDENING: ${doneChecks}/${totalChecks} complete\n  Critical: ${critDone}/${critChecks.length}\n\nACCOUNTS: ${accounts.length} total\n  2FA Enabled: ${twoFACount}/${accounts.length}\n  High Risk: ${highRisk}\n\nTHREATS:\n  Active: ${threats.filter(t=>t.status==="active").length}\n  Blocked: ${threats.filter(t=>t.status==="blocked").length}\n  Resolved: ${threats.filter(t=>t.status==="resolved").length}\n\nMONITORS: ${monitors.length} sites\n  Online: ${upMonitors}\n\nSCAN HISTORY: ${scanLog.length} total scans\n\n${"=".repeat(50)}\nINCOMPLETE CRITICAL TASKS:\n${critChecks.filter(c=>!checks[c.id]).map(c=>`  [ ] ${c.text}`).join("\n")}\n\nHIGH RISK ACCOUNTS:\n${accounts.filter(a=>accountRisk(a)==="high").map(a=>`  [!] ${a.name} - ${a.twoFA?"2FA on":"NO 2FA"}`).join("\n")}\n`;
     downloadReport("full-report", report);
   };
 
@@ -1834,7 +1849,7 @@ function ReportTab({ checks, threats, accounts, monitors, scanLog }) {
                   <div style={{ color: C.bright, fontSize: 12, fontWeight: 600 }}>{a.name}</div>
                   <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
                     <Badge color={a.twoFA ? C.green : C.red} style={{ fontSize: 8 }}>2FA</Badge>
-                    <Badge color={a.risk === "high" ? C.red : a.risk === "medium" ? C.orange : C.green} style={{ fontSize: 8 }}>{a.risk}</Badge>
+                    <Badge color={accountRisk(a) === "high" ? C.red : accountRisk(a) === "medium" ? C.orange : C.green} style={{ fontSize: 8 }}>{accountRisk(a)}</Badge>
                   </div>
                 </div>
               </div>
@@ -3465,13 +3480,13 @@ export default function App() {
       </nav>
 
       <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
-        {tab==="overview" && <OverviewTab checks={checks} threats={threats} setThreats={setThreatsAndSave} accounts={accounts} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
+        {tab==="overview" && <OverviewTab checks={checks} threats={threats} setThreats={setThreatsAndSave} accounts={accounts} setAccounts={setAccountsAndSave} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
         {tab==="scanner" && <ScannerTab addLog={addLog} />}
         {tab==="devices" && <DeviceTab checks={checks} setChecks={setChecksAndSave} />}
         {tab==="accounts" && <AccountTab accounts={accounts} setAccounts={setAccountsAndSave} />}
-        {tab==="threats" && <ThreatTab threats={threats} setThreats={setThreatsAndSave} />}
+        {tab==="threats" && <ThreatTab threats={threats} setThreats={setThreatsAndSave} accounts={accounts} setAccounts={setAccountsAndSave} />}
         {tab==="monitor" && <MonitorTab monitors={monitors} setMonitors={setMonitorsAndSave} />}
         {tab==="reports" && <ReportTab checks={checks} threats={threats} accounts={accounts} monitors={monitors} scanLog={scanLog} />}
         {tab==="incident" && <IncidentTab />}
