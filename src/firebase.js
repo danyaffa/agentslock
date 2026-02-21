@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -74,6 +74,29 @@ export async function signUp(email, password, displayName, promoCode) {
 export async function logIn(email, password) {
   if (!auth) throw new Error("Firebase not configured");
   const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user;
+}
+
+export async function logInWithGoogle() {
+  if (!auth) throw new Error("Firebase not configured");
+  const provider = new GoogleAuthProvider();
+  const cred = await signInWithPopup(auth, provider);
+  // Ensure Firestore user doc exists for Google sign-in users
+  const snap = await getDoc(doc(db, "users", cred.user.uid));
+  if (!snap.exists()) {
+    await setDoc(doc(db, "users", cred.user.uid), {
+      email: cred.user.email,
+      displayName: cred.user.displayName || cred.user.email.split("@")[0],
+      createdAt: Date.now(),
+      checks: {},
+      accounts: [],
+      threats: [],
+      monitors: [],
+      scanLog: [],
+      irChecks: {},
+      settings: { notifs: true, autoScan: false },
+    });
+  }
   return cred.user;
 }
 

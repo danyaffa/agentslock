@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Component } from "react";
-import { auth, db, firebaseError, signUp, logIn, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, getAllUsers, adminDeleteUser, adminUpdateUser } from "./firebase.js";
+import { auth, db, firebaseError, signUp, logIn, logInWithGoogle, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, getAllUsers, adminDeleteUser, adminUpdateUser } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
@@ -159,24 +159,7 @@ function useAuth() {
       }
       return { ok: true };
     }
-    catch (e) {
-      // Firebase v11 returns auth/invalid-credential for BOTH "no account" and "wrong password".
-      // Auto-create account if it doesn't exist, so Sign In always works for new users.
-      if (e.code === "auth/invalid-credential" || e.code === "auth/invalid-login-credentials") {
-        try {
-          const displayName = email.split("@")[0];
-          const result = await signUp(email, pass, displayName, promoCode);
-          return { ok: true, subscription: result.subscription || null };
-        } catch (signUpErr) {
-          if (signUpErr.code === "auth/email-already-in-use") {
-            // Account exists — password is genuinely wrong
-            return { ok: false, err: "Incorrect password. Please try again." };
-          }
-          return { ok: false, err: firebaseAuthError(signUpErr) };
-        }
-      }
-      return { ok: false, err: firebaseAuthError(e) };
-    }
+    catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
   const doSignup = async (email, name, pass, promoCode) => {
     try {
@@ -184,8 +167,12 @@ function useAuth() {
       return { ok: true, subscription: result.subscription };
     } catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
   };
+  const doGoogleLogin = async () => {
+    try { await logInWithGoogle(); return { ok: true }; }
+    catch (e) { return { ok: false, err: firebaseAuthError(e) }; }
+  };
   const doLogout = async () => { await logOut(); };
-  return { user, loading, login: doLogin, signup: doSignup, logout: doLogout };
+  return { user, loading, login: doLogin, signup: doSignup, googleLogin: doGoogleLogin, logout: doLogout };
 }
 
 // ─── Crypto Utils ────────────────────────────────────────────────────────────
@@ -286,7 +273,7 @@ const Stat = ({ label, value, color = C.bright, sub }) => (
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH SCREEN (Phase 3)
 // ═══════════════════════════════════════════════════════════════════════════════
-function AuthScreen({ onLogin, onSignup }) {
+function AuthScreen({ onLogin, onSignup, onGoogleLogin, threatStatus }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -307,6 +294,13 @@ function AuthScreen({ onLogin, onSignup }) {
     setBusy(false);
   };
 
+  const handleGoogleLogin = async () => {
+    setErr(""); setBusy(true);
+    const r = await onGoogleLogin();
+    if (!r.ok) setErr(r.err);
+    setBusy(false);
+  };
+
   const handleKey = (e) => { if (e.key === "Enter" && !busy) submit(); };
 
   return (
@@ -322,6 +316,36 @@ function AuthScreen({ onLogin, onSignup }) {
             Your all-in-one security dashboard — check passwords against known breaches, analyze password strength, scan websites for vulnerabilities, harden your devices, and respond to incidents with guided playbooks.
           </p>
         </div>
+
+        {/* Threat Status Indicator */}
+        {threatStatus && (() => {
+          const safe = threatStatus.safe;
+          const color = safe ? C.green : C.red;
+          return (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+              borderRadius: 10, marginBottom: 16,
+              background: safe ? `${C.green}10` : `${C.red}10`,
+              border: `1px solid ${color}30`,
+            }}>
+              <div style={{
+                width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+                background: color, boxShadow: `0 0 10px ${color}50`,
+                animation: safe ? "none" : "pulse 2s infinite",
+              }} />
+              <div>
+                <div style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 13, color, letterSpacing: "0.06em" }}>
+                  {safe ? "SAFE" : "CRITICAL"}
+                </div>
+                {!safe && (
+                  <div style={{ fontSize: 11, color: C.text, marginTop: 2 }}>
+                    Login, scan and block now!
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         <Card>
           <div style={{ display: "flex", marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
@@ -360,6 +384,23 @@ function AuthScreen({ onLogin, onSignup }) {
           <Btn onClick={submit} disabled={busy} style={{ width: "100%", justifyContent: "center", padding: "12px" }}>
             <I.LogIn /> {busy ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
           </Btn>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
+            <div style={{ flex: 1, height: 1, background: C.border }} />
+            <span style={{ fontSize: 11, color: C.dim }}>or</span>
+            <div style={{ flex: 1, height: 1, background: C.border }} />
+          </div>
+
+          <button onClick={handleGoogleLogin} disabled={busy} style={{
+            width: "100%", padding: "12px", borderRadius: 8, cursor: busy ? "not-allowed" : "pointer",
+            background: C.bg, border: `1px solid ${C.border}`, color: C.bright,
+            fontSize: 13, fontFamily: "inherit", fontWeight: 600,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            opacity: busy ? 0.5 : 1, transition: "all 0.2s",
+          }}>
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Sign in with Google
+          </button>
         </Card>
 
         <p style={{ textAlign: "center", color: C.dim, fontSize: 11, marginTop: 20 }}>
@@ -3071,160 +3112,11 @@ const TABS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FLOATING STATUS WIDGET — Always-on-top, draggable PiP security monitor
-// ═══════════════════════════════════════════════════════════════════════════════
-function StatusWidget({ threats }) {
-  const [expanded, setExpanded] = useState(false);
-  const [pos, setPos] = useState(() => {
-    try { const s = sessionStorage.getItem("al_widget_pos"); return s ? JSON.parse(s) : { x: 20, y: 20 }; }
-    catch { return { x: 20, y: 20 }; }
-  });
-  const [now, setNow] = useState(new Date());
-  const dragRef = useRef(null);
-  const offsetRef = useRef({ x: 0, y: 0 });
-  const didDrag = useRef(false);
-
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
-
-  const critical = threats.filter(t => t.status === "active" && (t.severity === "critical" || t.severity === "high")).length;
-  const active = threats.filter(t => t.status === "active").length;
-  const blocked = threats.filter(t => t.status === "blocked").length;
-  const isSafe = active === 0;
-  const statusColor = isSafe ? C.green : C.red;
-
-  // Drag handlers
-  const onPointerDown = (e) => {
-    if (e.target.closest("[data-no-drag]")) return;
-    didDrag.current = false;
-    offsetRef.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
-    dragRef.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e) => {
-    if (!dragRef.current) return;
-    didDrag.current = true;
-    const nx = Math.max(0, Math.min(window.innerWidth - 60, e.clientX - offsetRef.current.x));
-    const ny = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - offsetRef.current.y));
-    setPos({ x: nx, y: ny });
-  };
-  const onPointerUp = (e) => {
-    if (dragRef.current) {
-      dragRef.current = false;
-      e.currentTarget.releasePointerCapture(e.pointerId);
-      try { sessionStorage.setItem("al_widget_pos", JSON.stringify(pos)); } catch {}
-      if (!didDrag.current) setExpanded(v => !v);
-    }
-  };
-
-  return (
-    <div
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-      style={{
-        position: "fixed", left: pos.x, top: pos.y, zIndex: 9999,
-        fontFamily: "'Space Grotesk', sans-serif", userSelect: "none", touchAction: "none",
-        transition: expanded ? "none" : "box-shadow 0.3s",
-      }}
-    >
-      {/* Collapsed: tiny pill */}
-      {!expanded && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "8px 14px", borderRadius: 24,
-          background: `${C.bgCard}f0`, backdropFilter: "blur(12px)",
-          border: `1px solid ${statusColor}40`,
-          boxShadow: `0 4px 20px ${C.bg}80, 0 0 12px ${statusColor}20`,
-          cursor: "grab",
-        }}>
-          <div style={{
-            width: 10, height: 10, borderRadius: "50%", background: statusColor,
-            boxShadow: `0 0 8px ${statusColor}60`,
-            animation: isSafe ? "none" : "pulse 2s infinite",
-          }} />
-          <span style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 10, letterSpacing: "0.08em", color: statusColor }}>
-            {isSafe ? "SAFE" : `${active} ALERT${active > 1 ? "S" : ""}`}
-          </span>
-          <span style={{ fontFamily: "'Fira Code'", fontSize: 10, color: C.dim }}>
-            {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </div>
-      )}
-
-      {/* Expanded: full status card */}
-      {expanded && (
-        <div style={{
-          width: 260, borderRadius: 16,
-          background: `${C.bgCard}f5`, backdropFilter: "blur(16px)",
-          border: `1px solid ${statusColor}30`,
-          boxShadow: `0 8px 32px ${C.bg}90, 0 0 20px ${statusColor}15`,
-          cursor: "grab", overflow: "hidden",
-        }}>
-          {/* Header bar */}
-          <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, background: `linear-gradient(135deg, ${statusColor}, ${isSafe ? C.blue : C.orange})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <I.Shield s={12} style={{ color: "#fff" }} />
-              </div>
-              <span style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 11, color: C.bright, letterSpacing: "0.06em" }}>AGENTSLOCK</span>
-            </div>
-            <span style={{ fontFamily: "'Fira Code'", fontSize: 10, color: C.dim }}>{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-          </div>
-
-          {/* Status section */}
-          <div style={{ padding: "16px 14px", textAlign: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{
-                width: 14, height: 14, borderRadius: "50%", background: statusColor,
-                boxShadow: `0 0 10px ${statusColor}50`,
-                animation: isSafe ? "none" : "pulse 2s infinite",
-              }} />
-              <span style={{ fontFamily: "'Chakra Petch'", fontWeight: 700, fontSize: 16, letterSpacing: "0.08em", color: statusColor }}>
-                {isSafe ? "ALL SAFE" : "TAKE ACTION"}
-              </span>
-              <div style={{
-                width: 14, height: 14, borderRadius: "50%", background: statusColor,
-                boxShadow: `0 0 10px ${statusColor}50`,
-                animation: isSafe ? "none" : "pulse 2s infinite",
-              }} />
-            </div>
-
-            {!isSafe && (
-              <div style={{ padding: "6px 12px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 6, marginBottom: 10, display: "inline-block" }}>
-                <span style={{ color: C.red, fontSize: 11, fontWeight: 600 }}>
-                  {critical > 0 ? `${critical} CRITICAL` : ""}{critical > 0 && active > critical ? " + " : ""}{active > critical ? `${active - critical} active` : ""}
-                </span>
-              </div>
-            )}
-
-            {/* Threat summary row */}
-            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 8 }}>
-              {[
-                { label: "Active", count: active, color: active > 0 ? C.red : C.green },
-                { label: "Blocked", count: blocked, color: C.blue },
-              ].map((item, i) => (
-                <div key={i} style={{ textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Fira Code'", fontSize: 18, fontWeight: 700, color: item.color }}>{item.count}</div>
-                  <div style={{ fontSize: 9, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em" }}>{item.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div style={{ padding: "8px 14px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 9, color: C.dim }}>{now.toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-            <span style={{ fontSize: 9, color: C.dim, opacity: 0.6 }}>drag to move</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
+// (StatusWidget removed — threat status now shown on login screen)
 export default function App() {
-  const { user, loading, login, signup, logout } = useAuth();
+  const { user, loading, login, signup, googleLogin, logout } = useAuth();
   const [tab, setTab] = useState("overview");
   const [checks, setChecks] = useState(DEFAULT_CHECKS);
   const [threats, setThreats] = useState(INIT_THREATS);
@@ -3296,7 +3188,7 @@ export default function App() {
   }, [user, dataLoaded]);
 
   const setChecksAndSave = (v) => { const nv = typeof v === "function" ? v(checks) : v; setChecks(nv); autoSave("checks", nv); };
-  const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); };
+  const setThreatsAndSave = (v) => { const nv = typeof v === "function" ? v(threats) : v; setThreats(nv); autoSave("threats", nv); const ac = nv.filter(t => t.status === "active").length; LS.set("threatStatus", { safe: ac === 0, active: ac }); };
   const setAccountsAndSave = (v) => { const nv = typeof v === "function" ? v(accounts) : v; setAccounts(nv); autoSave("accounts", nv); };
   const setMonitorsAndSave = (v) => { const nv = typeof v === "function" ? v(monitors) : v; setMonitors(nv); autoSave("monitors", nv); };
   // Auto-save deviceCleaned whenever it changes (useEffect avoids stale closure issues with functional setState)
@@ -3403,7 +3295,7 @@ export default function App() {
     return r;
   };
 
-  if (!user) return <AuthScreen onLogin={login} onSignup={handleSignup} />;
+  if (!user) { const ts = LS.get("threatStatus", { safe: true, active: 0 }); return <AuthScreen onLogin={login} onSignup={handleSignup} onGoogleLogin={googleLogin} threatStatus={ts} />; }
 
   // Admin bypass — developer always gets full access (no PayPal required)
   const isAdmin = import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
@@ -3519,8 +3411,6 @@ export default function App() {
       {/* Legal overlay */}
       <LegalOverlay page={legalPage} onClose={(nextPage) => setLegalPage(nextPage || null)} />
 
-      {/* Floating status widget — always-on-top, draggable */}
-      <StatusWidget threats={threats} />
     </div>
   );
 }
