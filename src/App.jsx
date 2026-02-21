@@ -114,69 +114,29 @@ const downloadReport = (name, content) => {
 };
 const ReportBtn = ({ onClick }) => <Btn onClick={onClick} color={C.blue} style={{ fontSize: 10 }}><I.Download /> Download Report</Btn>;
 
-// ─── Session Guard (anti-hijack) ────────────────────────────────────────────
+// ─── Session Guard (idle timeout) ───────────────────────────────────────────
 const SESSION_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-function getSessionFingerprint() {
-  const nav = window.navigator;
-  const raw = [nav.userAgent, nav.language, nav.hardwareConcurrency, screen.width, screen.height, screen.colorDepth, Intl.DateTimeFormat().resolvedOptions().timeZone].join("|");
-  // Simple hash for comparison (not cryptographic — just identity check)
-  let h = 0;
-  for (let i = 0; i < raw.length; i++) { h = ((h << 5) - h + raw.charCodeAt(i)) | 0; }
-  return h.toString(36);
-}
-function bindSession() {
-  const fp = getSessionFingerprint();
-  sessionStorage.setItem("al_sfp", fp);
-  sessionStorage.setItem("al_stime", Date.now().toString());
-  return fp;
-}
-function validateSession() {
-  const stored = sessionStorage.getItem("al_sfp");
-  if (!stored) return true; // First load — will be bound on login
-  if (stored !== getSessionFingerprint()) return false; // Fingerprint mismatch
-  const stime = parseInt(sessionStorage.getItem("al_stime") || "0", 10);
-  if (Date.now() - stime > SESSION_IDLE_TIMEOUT) return false; // Idle timeout
-  return true;
-}
-function touchSession() {
-  sessionStorage.setItem("al_stime", Date.now().toString());
-}
 
 // ─── Firebase Auth Hook ──────────────────────────────────────────────────────
 function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const unsub = onAuth((u) => {
-      if (u) {
-        if (!validateSession()) {
-          // Session fingerprint mismatch or idle timeout — force logout
-          logOut(); setUser(null); setLoading(false);
-          sessionStorage.removeItem("al_sfp");
-          sessionStorage.removeItem("al_stime");
-          return;
-        }
-        bindSession();
-      } else {
-        sessionStorage.removeItem("al_sfp");
-        sessionStorage.removeItem("al_stime");
-      }
-      setUser(u); setLoading(false);
-    });
+    const unsub = onAuth((u) => { setUser(u); setLoading(false); });
     return unsub;
   }, []);
-  // Touch session on user activity to reset idle timer
+  // Idle timeout — auto-logout after 30 minutes of inactivity
   useEffect(() => {
     if (!user) return;
-    const onActivity = () => touchSession();
+    let lastActivity = Date.now();
+    const touch = () => { lastActivity = Date.now(); };
     const events = ["mousedown", "keydown", "scroll", "touchstart"];
-    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }));
-    // Periodic idle check every 60 seconds
+    events.forEach(e => window.addEventListener(e, touch, { passive: true }));
     const idleCheck = setInterval(() => {
-      if (!validateSession()) { logOut(); setUser(null); }
+      if (Date.now() - lastActivity > SESSION_IDLE_TIMEOUT) { logOut(); setUser(null); }
     }, 60000);
     return () => {
-      events.forEach(e => window.removeEventListener(e, onActivity));
+      events.forEach(e => window.removeEventListener(e, touch));
       clearInterval(idleCheck);
     };
   }, [user]);
@@ -266,13 +226,18 @@ const Badge = ({ children, color, style }) => (
 const Btn = ({ children, onClick, color = C.green, disabled, style }) => (
   <button disabled={disabled} onClick={onClick} style={{ background: `${color}15`, border: `1px solid ${color}40`, color, padding: "8px 16px", borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, fontFamily: "inherit", fontWeight: 600, opacity: disabled ? 0.5 : 1, display: "inline-flex", alignItems: "center", gap: 6, transition: "all 0.2s", ...style }}>{children}</button>
 );
-const Input = ({ value, onChange, placeholder, type = "text", style, icon }) => (
-  <div style={{ position: "relative", display: "flex", alignItems: "center", ...style }}>
-    {icon && <span style={{ position: "absolute", left: 12, color: C.dim }}>{icon}</span>}
-    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      style={{ width: "100%", padding: icon ? "10px 14px 10px 38px" : "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.bright, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
-  </div>
-);
+const Input = ({ value, onChange, placeholder, type = "text", style, icon }) => {
+  const [showPw, setShowPw] = useState(false);
+  const isPw = type === "password";
+  return (
+    <div style={{ position: "relative", display: "flex", alignItems: "center", ...style }}>
+      {icon && <span style={{ position: "absolute", left: 12, color: C.dim }}>{icon}</span>}
+      <input type={isPw && showPw ? "text" : type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ width: "100%", padding: icon ? `10px ${isPw ? "38px" : "14px"} 10px 38px` : `10px ${isPw ? "38px" : "14px"} 10px 14px`, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.bright, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+      {isPw && <span onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 10, color: C.dim, cursor: "pointer", display: "flex", alignItems: "center" }}>{showPw ? <I.EyeOff s={16} /> : <I.Eye s={16} />}</span>}
+    </div>
+  );
+};
 const Progress = ({ value, color = C.green, h = 6 }) => (
   <div style={{ width: "100%", height: h, background: C.bg, borderRadius: h, overflow: "hidden" }}>
     <div style={{ width: `${Math.min(100, Math.max(0, value))}%`, height: "100%", background: color, borderRadius: h, transition: "width 0.6s ease" }} />
@@ -2541,7 +2506,7 @@ const INIT_THREATS = [
   { id:1, name:"Phishing Attempt", target:"Gmail", severity:"critical", status:"active", time:"12 min ago", desc:"Credential harvesting link detected" },
   { id:2, name:"API Key Exposure", target:"GitHub", severity:"critical", status:"active", time:"1 hour ago", desc:"Potential key in public repo" },
   { id:3, name:"Malware Detected", target:"Android", severity:"medium", status:"blocked", time:"3 hours ago", desc:"Trojan blocked by Play Protect" },
-  { id:4, name:"Session Hijack", target:"Vercel", severity:"medium", status:"investigating", time:"5 hours ago", desc:"Unusual session from unknown IP" },
+  { id:4, name:"Session Hijack", target:"Vercel", severity:"medium", status:"blocked", time:"5 hours ago", desc:"Blocked — HSTS, CSP & idle timeout enforced" },
   { id:5, name:"DNS Poisoning", target:"Router", severity:"high", status:"blocked", time:"8 hours ago", desc:"DNS manipulation blocked" },
   { id:6, name:"Keylogger", target:"Windows", severity:"critical", status:"resolved", time:"1 day ago", desc:"Removed by Defender" },
   { id:7, name:"Token Theft", target:"Browser", severity:"low", status:"resolved", time:"2 days ago", desc:"Suspicious extension blocked" },
