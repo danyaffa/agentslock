@@ -3252,6 +3252,239 @@ function AdminDashboard({ user, onClose }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// APP STORE / PWA INSTALL PAGE — Platform-aware install instructions
+// ═══════════════════════════════════════════════════════════════════════════════
+function AppStorePage() {
+  const [installPrompt, setInstallPrompt] = useState(null);
+
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === "accepted") setInstallPrompt(null);
+  };
+
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/.test(ua);
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS/.test(ua);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+
+  const wrap = {
+    minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column",
+    alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif",
+    padding: "40px 20px",
+  };
+  const card = {
+    width: "100%", maxWidth: 420, background: C.bgCard, border: `1px solid ${C.border}`,
+    borderRadius: 16, padding: "32px 24px", textAlign: "center",
+  };
+
+  // ── Already installed ─────────────────────────────────────────────────────
+  if (isStandalone) return (
+    <div style={wrap}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');`}</style>
+      <div style={card}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: `0 8px 32px ${C.green}20` }}>
+          <I.Check s={32} style={{ color: "#fff" }} />
+        </div>
+        <h1 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, margin: "0 0 8px" }}>Already Installed</h1>
+        <p style={{ color: C.dim, fontSize: 13, margin: "0 0 24px", lineHeight: 1.6 }}>
+          AgentsLock is already installed on this device. You're all set!
+        </p>
+        <a href="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 28px", background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, border: "none", borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", textDecoration: "none", cursor: "pointer" }}>
+          <I.Shield s={18} /> Open Dashboard
+        </a>
+      </div>
+    </div>
+  );
+
+  // ── iOS / iPadOS ──────────────────────────────────────────────────────────
+  if (isIOS) return (
+    <div style={wrap}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');`}</style>
+      <div style={card}>
+        {/* App icon */}
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: `0 8px 32px ${C.green}20` }}>
+          <I.Shield s={32} style={{ color: "#fff" }} />
+        </div>
+        <h1 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, margin: "0 0 8px" }}>Install AgentsLock</h1>
+        <p style={{ color: C.dim, fontSize: 13, margin: "0 0 24px", lineHeight: 1.6 }}>
+          AgentsLock is a web app — install it directly from <strong style={{ color: C.bright }}>Safari</strong>. No App Store needed.
+        </p>
+
+        {/* Step 1 — Open in Safari */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, textAlign: "left", marginBottom: 18, padding: "14px 16px", background: C.bg, borderRadius: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: `${C.blue}18`, border: `1px solid ${C.blueBdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: C.blue, fontWeight: 700, fontSize: 14 }}>1</div>
+          <div>
+            <div style={{ color: C.bright, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Open this page in Safari</div>
+            <div style={{ color: C.dim, fontSize: 11, lineHeight: 1.5 }}>
+              {isSafari
+                ? <span style={{ color: C.green }}>You're already in Safari — you're good!</span>
+                : <>Copy this URL and paste it in <strong style={{ color: C.bright }}>Safari</strong>. Other browsers won't work for installation on iOS.</>
+              }
+            </div>
+          </div>
+        </div>
+
+        {/* Step 2 — Tap Share */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, textAlign: "left", marginBottom: 18, padding: "14px 16px", background: C.bg, borderRadius: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: `${C.blue}18`, border: `1px solid ${C.blueBdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: C.blue, fontWeight: 700, fontSize: 14 }}>2</div>
+          <div>
+            <div style={{ color: C.bright, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+              Tap the <span style={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", margin: "0 2px" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              </span> Share button
+            </div>
+            <div style={{ color: C.dim, fontSize: 11, lineHeight: 1.5 }}>
+              Look for the share icon at the <strong style={{ color: C.bright }}>bottom</strong> of the Safari toolbar.
+            </div>
+          </div>
+        </div>
+
+        {/* Step 3 — Add to Home Screen */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, textAlign: "left", marginBottom: 18, padding: "14px 16px", background: C.bg, borderRadius: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: `${C.blue}18`, border: `1px solid ${C.blueBdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: C.blue, fontWeight: 700, fontSize: 14 }}>3</div>
+          <div>
+            <div style={{ color: C.bright, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Scroll down and tap "Add to Home Screen"</div>
+            <div style={{ color: C.dim, fontSize: 11, lineHeight: 1.5 }}>
+              You may need to scroll down in the share menu to find this option.
+            </div>
+          </div>
+        </div>
+
+        {/* Step 4 — Tap Add */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, textAlign: "left", marginBottom: 24, padding: "14px 16px", background: C.bg, borderRadius: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: `${C.blue}18`, border: `1px solid ${C.blueBdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: C.blue, fontWeight: 700, fontSize: 14 }}>4</div>
+          <div>
+            <div style={{ color: C.bright, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Tap "Add" in the top-right corner</div>
+            <div style={{ color: C.dim, fontSize: 11, lineHeight: 1.5 }}>
+              This adds AgentsLock to your home screen.
+            </div>
+          </div>
+        </div>
+
+        {/* App icon preview */}
+        <div style={{ padding: "16px", background: C.bg, borderRadius: 10, marginBottom: 16 }}>
+          <div style={{ color: C.dim, fontSize: 11, marginBottom: 10 }}>Look for this icon on your Home Screen:</div>
+          <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 12, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 16px ${C.green}20` }}>
+              <I.Shield s={26} style={{ color: "#fff" }} />
+            </div>
+            <span style={{ color: C.bright, fontSize: 11, fontWeight: 500 }}>AgentsLock</span>
+          </div>
+        </div>
+
+        <p style={{ color: C.green, fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.6 }}>
+          You're all set — the app runs like a native app!
+        </p>
+      </div>
+    </div>
+  );
+
+  // ── Android / Chromium (native install prompt available) ───────────────────
+  if (isAndroid || installPrompt) return (
+    <div style={wrap}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');`}</style>
+      <div style={card}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: `0 8px 32px ${C.green}20` }}>
+          <I.Shield s={32} style={{ color: "#fff" }} />
+        </div>
+        <h1 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, margin: "0 0 8px" }}>Install AgentsLock</h1>
+        <p style={{ color: C.dim, fontSize: 13, margin: "0 0 24px", lineHeight: 1.6 }}>
+          Install the app directly to your device — no app store required.
+        </p>
+
+        {installPrompt ? (
+          <button onClick={handleInstall} style={{ width: "100%", padding: "14px 28px", background: `linear-gradient(135deg, ${C.green}, #00c864)`, border: "none", borderRadius: 10, color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: "'Chakra Petch', sans-serif", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 16, boxShadow: `0 4px 20px ${C.green}30` }}>
+            <I.Download s={20} /> Install AgentsLock
+          </button>
+        ) : (
+          /* Android fallback — no prompt available */
+          <div style={{ textAlign: "left" }}>
+            <div style={{ color: C.dim, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12, fontWeight: 500 }}>Manual Install Steps</div>
+            {[
+              { n: "1", text: "Open this page in Chrome or Edge" },
+              { n: "2", text: "Tap the three-dot menu (\u22EE) in the top-right corner" },
+              { n: "3", text: "Tap \"Add to Home screen\" or \"Install app\"" },
+              { n: "4", text: "Tap \"Install\" on the confirmation dialog" },
+            ].map(s => (
+              <div key={s.n} style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12, padding: "12px 14px", background: C.bg, borderRadius: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: `${C.green}18`, border: `1px solid ${C.greenBdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: C.green, fontWeight: 700, fontSize: 13 }}>{s.n}</div>
+                <div style={{ color: C.text, fontSize: 13, lineHeight: 1.5, paddingTop: 3 }}>{s.text}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ── Desktop / Other browsers ──────────────────────────────────────────────
+  return (
+    <div style={wrap}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');`}</style>
+      <div style={card}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: `0 8px 32px ${C.green}20` }}>
+          <I.Shield s={32} style={{ color: "#fff" }} />
+        </div>
+        <h1 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, margin: "0 0 8px" }}>Install AgentsLock</h1>
+        <p style={{ color: C.dim, fontSize: 13, margin: "0 0 24px", lineHeight: 1.6 }}>
+          Install AgentsLock as a desktop app — no app store required.
+        </p>
+
+        <div style={{ textAlign: "left" }}>
+          {/* Chrome / Edge */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: C.bright, fontSize: 13, fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+              <I.Globe s={16} style={{ color: C.blue }} /> Chrome / Edge
+            </div>
+            <div style={{ padding: "12px 14px", background: C.bg, borderRadius: 8, color: C.text, fontSize: 12, lineHeight: 1.8 }}>
+              1. Look for the install icon (<span style={{ color: C.green, fontWeight: 600 }}>{"\u2913"}</span>) in the address bar<br />
+              2. Click "Install AgentsLock"<br />
+              3. Click "Install" to confirm
+            </div>
+          </div>
+
+          {/* Samsung Internet */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: C.bright, fontSize: 13, fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+              <I.Globe s={16} style={{ color: C.purple }} /> Samsung Internet
+            </div>
+            <div style={{ padding: "12px 14px", background: C.bg, borderRadius: 8, color: C.text, fontSize: 12, lineHeight: 1.8 }}>
+              1. Tap the menu icon at the bottom-right<br />
+              2. Tap "Add page to" → "Home screen"<br />
+              3. Tap "Add" to confirm
+            </div>
+          </div>
+
+          {/* Firefox */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: C.bright, fontSize: 13, fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+              <I.Globe s={16} style={{ color: C.orange }} /> Firefox
+            </div>
+            <div style={{ padding: "12px 14px", background: C.bg, borderRadius: 8, color: C.text, fontSize: 12, lineHeight: 1.8 }}>
+              Firefox on desktop does not support PWA installation natively.<br />
+              Use <strong style={{ color: C.bright }}>Chrome</strong> or <strong style={{ color: C.bright }}>Edge</strong> for the best experience.
+            </div>
+          </div>
+        </div>
+
+        <a href="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 24px", background: `${C.green}15`, border: `1px solid ${C.greenBdr}`, borderRadius: 8, color: C.green, fontSize: 12, fontWeight: 600, fontFamily: "inherit", textDecoration: "none", marginTop: 8 }}>
+          <I.Shield s={14} /> Go to AgentsLock
+        </a>
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
   { id:"overview", label:"Overview", icon:<I.Shield /> },
   { id:"breach", label:"Breach Check", icon:<I.Database /> },
@@ -3271,6 +3504,8 @@ const TABS = [
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
 // (StatusWidget removed — threat status now shown on login screen)
+export { AppStorePage };
+
 export default function App() {
   const { user, loading, login, signup, googleLogin, logout } = useAuth();
   const [tab, setTab] = useState("overview");
