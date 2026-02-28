@@ -1,9 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#06080d"/>
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00e87b"/><stop offset="100%" stop-color="#3b8bff"/></linearGradient></defs>
-  <path d="M256 80l-128 48v96c0 96 128 160 128 160s128-64 128-160v-96L256 80z" fill="url(#g)" opacity="0.9"/>
-  <path d="M256 120l-96 36v72c0 72 96 120 96 120s96-48 96-120v-72L256 120z" fill="#06080d" opacity="0.3"/>
-  <rect x="232" y="200" width="48" height="80" rx="8" fill="#fff"/>
-  <circle cx="256" cy="188" r="28" fill="none" stroke="#fff" stroke-width="12"/>
-  <path d="M228 188v-20a28 28 0 0 1 56 0v20" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round"/>
+  <!-- Red circle background -->
+  <circle cx="256" cy="256" r="256" fill="#D32F2F"/>
+
+  <!-- Stop hand — geometric shapes combined -->
+  <g fill="#FFFFFF">
+    <!-- Index finger -->
+    <rect x="178" y="128" width="38" height="170" rx="19"/>
+    <!-- Middle finger (tallest) -->
+    <rect x="226" y="104" width="38" height="194" rx="19"/>
+    <!-- Ring finger -->
+    <rect x="274" y="128" width="38" height="170" rx="19"/>
+    <!-- Pinky finger -->
+    <rect x="322" y="160" width="34" height="138" rx="17"/>
+    <!-- Palm -->
+    <rect x="152" y="256" width="218" height="104" rx="28"/>
+    <!-- Wrist -->
+    <rect x="210" y="342" width="100" height="62" rx="16"/>
+    <!-- Thumb (angled to the left) -->
+    <rect x="98" y="196" width="34" height="100" rx="17" transform="rotate(30 115 246)"/>
+    <!-- Thumb-palm connector -->
+    <rect x="132" y="232" width="52" height="52" rx="16"/>
+  </g>
 </svg>
