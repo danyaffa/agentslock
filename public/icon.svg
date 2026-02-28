@@ -1,24 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Red circle background -->
-  <circle cx="256" cy="256" r="256" fill="#D32F2F"/>
+  <circle cx="256" cy="256" r="248" fill="#D32F2F"/>
 
-  <!-- Stop hand — geometric shapes combined -->
   <g fill="#FFFFFF">
     <!-- Index finger -->
-    <rect x="178" y="128" width="38" height="170" rx="19"/>
+    <rect x="182" y="124" width="40" height="158" rx="20"/>
     <!-- Middle finger (tallest) -->
-    <rect x="226" y="104" width="38" height="194" rx="19"/>
+    <rect x="234" y="100" width="40" height="182" rx="20"/>
     <!-- Ring finger -->
-    <rect x="274" y="128" width="38" height="170" rx="19"/>
+    <rect x="286" y="124" width="40" height="158" rx="20"/>
     <!-- Pinky finger -->
-    <rect x="322" y="160" width="34" height="138" rx="17"/>
+    <rect x="336" y="158" width="36" height="124" rx="18"/>
     <!-- Palm -->
-    <rect x="152" y="256" width="218" height="104" rx="28"/>
+    <rect x="148" y="258" width="230" height="96" rx="24"/>
     <!-- Wrist -->
-    <rect x="210" y="342" width="100" height="62" rx="16"/>
-    <!-- Thumb (angled to the left) -->
-    <rect x="98" y="196" width="34" height="100" rx="17" transform="rotate(30 115 246)"/>
-    <!-- Thumb-palm connector -->
-    <rect x="132" y="232" width="52" height="52" rx="16"/>
+    <rect x="213" y="340" width="96" height="62" rx="16"/>
+    <!-- Thumb -->
+    <rect x="100" y="186" width="36" height="100" rx="18" transform="rotate(30 118 236)"/>
+    <!-- Thumb-palm bridge -->
+    <ellipse cx="162" cy="266" rx="30" ry="26"/>
+  </g>
+
+  <!-- Finger separations (red lines to create gaps between fingers) -->
+  <g stroke="#D32F2F" stroke-width="6" stroke-linecap="round">
+    <line x1="222" y1="268" x2="222" y2="178"/>
+    <line x1="274" y1="268" x2="274" y2="178"/>
+    <line x1="326" y1="268" x2="326" y2="204"/>
   </g>
 </svg>
