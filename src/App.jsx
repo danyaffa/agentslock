@@ -3720,7 +3720,7 @@ export default function App() {
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes spin{to{transform:rotate(360deg)}}
       `}</style>
 
-      <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 24px", borderBottom:`1px solid ${C.border}`, background:`${C.bgCard}ee`, backdropFilter:"blur(12px)", position:"sticky", top:0, zIndex:100 }}>
+      <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px", gap:12, borderBottom:`1px solid ${C.border}`, background:`${C.bgCard}ee`, backdropFilter:"blur(12px)", position:"sticky", top:0, zIndex:100 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:34, height:34, borderRadius:8, background:`linear-gradient(135deg,${C.green},${C.blue})`, display:"flex", alignItems:"center", justifyContent:"center" }}><I.Shield s={18} style={{ color:"#fff" }}/></div>
           <div>
@@ -3728,7 +3728,7 @@ export default function App() {
             <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.12em", textTransform:"uppercase" }}>v4.0 — Firebase Secured Platform</div>
           </div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
           <span style={{ fontFamily:"'Fira Code'", fontSize:12, color:C.dim }}>{now.toLocaleTimeString()}</span>
           {activeThreats > 0 ? (
             <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", background:C.redDim, border:`1px solid ${C.redBdr}`, borderRadius:6, animation:"pulse 2s infinite" }}>
@@ -3740,7 +3740,7 @@ export default function App() {
             </div>
           )}
           <button onClick={() => setShowInstallAll(true)}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff", transition:"opacity 0.2s" }}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff", transition:"opacity 0.2s", flexShrink:0 }}
             onMouseOver={e=>e.currentTarget.style.opacity=0.85} onMouseOut={e=>e.currentTarget.style.opacity=1}>
             <I.Download s={14}/> Install App
           </button>
