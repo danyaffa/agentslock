@@ -81,6 +81,7 @@ const I = {
   Cpu: icon(<><rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" /></>),
   Apple: icon(<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11" />),
   HelpCircle: icon(<><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></>),
+  Menu: icon(<><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></>),
   Smartphone: icon(<><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></>),
 };
 
@@ -397,7 +398,7 @@ function AuthScreen({ onLogin, onSignup, onGoogleLogin, threatStatus }) {
         {/* Benefits Grid */}
         <div style={{ flex: "1 1 440px", minWidth: 300 }}>
           <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, color: C.bright, marginBottom: 16, letterSpacing: "0.04em" }}>Everything You Need to Stay Secure</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
             {BENEFITS.map((b, i) => (
               <div key={i} style={{ display: "flex", gap: 10, padding: "12px 14px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
                 <span style={{ color: C.green, flexShrink: 0, marginTop: 2 }}>{b.icon}</span>
@@ -693,7 +694,7 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
           </div>
 
           {/* Features List */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 28 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 28 }}>
             {features.map((f, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: C.bg, borderRadius: 8, fontSize: 11, color: C.text }}>
                 <span style={{ color: C.green, flexShrink: 0 }}>{f.icon}</span>
@@ -1068,10 +1069,10 @@ function OverviewTab({ checks, setChecks, threats, setThreats, accounts, setAcco
         <ReportBtn onClick={exportOverview} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
+      <div className="al-stats-grid">
         <Card glow={score >= 80 ? C.green : score >= 50 ? C.orange : C.red}>
           <div style={{ textAlign: "center" }}>
-            <svg width="90" height="90" viewBox="0 0 120 120">
+            <svg width="80" height="80" viewBox="0 0 120 120" style={{ maxWidth:"100%" }}>
               <circle cx="60" cy="60" r="52" fill="none" stroke={C.border} strokeWidth="8" />
               <circle cx="60" cy="60" r="52" fill="none" stroke={score >= 80 ? C.green : score >= 50 ? C.orange : C.red}
                 strokeWidth="8" strokeDasharray={`${score * 3.267} 326.7`} strokeLinecap="round" transform="rotate(-90 60 60)" />
@@ -1249,7 +1250,7 @@ function OverviewTab({ checks, setChecks, threats, setThreats, accounts, setAcco
       {/* ── Quick Actions ─── */}
       <Card>
         <Sect title="Quick Actions" icon={<I.Zap />}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
             {[
               { label: "Breach Check", desc: "Check password leaks", icon: <I.Key />, color: C.purple, tab: "breach" },
               { label: "Web Scanner", desc: "Scan site security", icon: <I.Globe />, color: C.cyan, tab: "scanner" },
@@ -3971,6 +3972,7 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showInstallAll, setShowInstallAll] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
@@ -4169,51 +4171,121 @@ export default function App() {
         ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}
         ::selection{background:${C.green}30;color:${C.bright}} input:focus{border-color:${C.green}!important}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        .al-header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+        .al-mobile-toggle{display:none!important}
+        .al-mobile-menu{display:none}
+        .al-nav{display:flex;gap:2px;padding:8px 24px;border-bottom:1px solid ${C.border};overflow-x:auto;-webkit-overflow-scrolling:touch}
+        .al-nav::-webkit-scrollbar{height:0;display:none}
+        .al-stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:12px}
+        .al-main{padding:24px;max-width:1200px;margin:0 auto}
+        @media(max-width:768px){
+          .al-header-actions{display:none!important}
+          .al-mobile-toggle{display:flex!important}
+          .al-mobile-menu{display:flex!important;flex-direction:column;gap:8px;padding:12px 16px;border-bottom:1px solid ${C.border};background:${C.bgCard};animation:slideDown 0.2s ease}
+          .al-nav{padding:6px 10px;gap:1px}
+          .al-nav button{padding:6px 8px!important;font-size:10px!important}
+          .al-stats-grid{grid-template-columns:1fr 1fr!important;gap:8px!important}
+          .al-main{padding:12px!important}
+        }
+        @media(max-width:480px){
+          .al-stats-grid{grid-template-columns:1fr 1fr!important;gap:6px!important}
+          .al-nav button{padding:5px 6px!important;font-size:9px!important;gap:3px!important}
+          .al-main{padding:8px!important}
+        }
       `}</style>
 
-      <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px", gap:12, borderBottom:`1px solid ${C.border}`, background:`${C.bgCard}ee`, backdropFilter:"blur(12px)", position:"sticky", top:0, zIndex:100 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:34, height:34, borderRadius:8, background:`linear-gradient(135deg,${C.green},${C.blue})`, display:"flex", alignItems:"center", justifyContent:"center" }}><I.Shield s={18} style={{ color:"#fff" }}/></div>
-          <div>
-            <div style={{ fontFamily:"'Chakra Petch'", fontWeight:700, fontSize:16, color:C.bright, letterSpacing:"0.06em" }}>AGENTSLOCK</div>
-            <div style={{ fontSize:9, color:C.dim, letterSpacing:"0.12em", textTransform:"uppercase" }}>v4.0 — Firebase Secured Platform</div>
+      <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 12px", gap:8, borderBottom:`1px solid ${C.border}`, background:`${C.bgCard}ee`, backdropFilter:"blur(12px)", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+          <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${C.green},${C.blue})`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><I.Shield s={16} style={{ color:"#fff" }}/></div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontFamily:"'Chakra Petch'", fontWeight:700, fontSize:14, color:C.bright, letterSpacing:"0.06em" }}>AGENTSLOCK</div>
+            <div style={{ fontSize:8, color:C.dim, letterSpacing:"0.1em", textTransform:"uppercase", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>v4.0 — Secured Platform</div>
           </div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
-          <span style={{ fontFamily:"'Fira Code'", fontSize:12, color:C.dim }}>{now.toLocaleTimeString()}</span>
+
+        {/* Desktop header actions */}
+        <div className="al-header-actions">
+          <span style={{ fontFamily:"'Fira Code'", fontSize:11, color:C.dim }}>{now.toLocaleTimeString()}</span>
           {activeThreats > 0 ? (
-            <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", background:C.redDim, border:`1px solid ${C.redBdr}`, borderRadius:6, animation:"pulse 2s infinite" }}>
-              <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:11, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", background:C.redDim, border:`1px solid ${C.redBdr}`, borderRadius:6, animation:"pulse 2s infinite" }}>
+              <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:10, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
             </div>
           ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", background:C.greenDim, border:`1px solid ${C.greenBdr}`, borderRadius:6 }}>
-              <I.Shield s={12} style={{ color:C.green }}/><span style={{ color:C.green, fontSize:11, fontWeight:600 }}>SECURED</span>
+            <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", background:C.greenDim, border:`1px solid ${C.greenBdr}`, borderRadius:6 }}>
+              <I.Shield s={11} style={{ color:C.green }}/><span style={{ color:C.green, fontSize:10, fontWeight:600 }}>SECURED</span>
             </div>
           )}
           <button onClick={() => setShowInstallAll(true)}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff", transition:"opacity 0.2s", flexShrink:0 }}
+            style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:10, fontWeight:600, color:"#fff", transition:"opacity 0.2s", flexShrink:0 }}
             onMouseOver={e=>e.currentTarget.style.opacity=0.85} onMouseOut={e=>e.currentTarget.style.opacity=1}>
-            <I.Download s={14}/> Install App
+            <I.Download s={13}/> Install App
           </button>
-          <div style={{ display:"flex", alignItems:"center", gap:6, color:C.dim, fontSize:11 }}><I.User s={14}/>{userName}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:5, color:C.dim, fontSize:10 }}><I.User s={13}/>{userName}</div>
           <button onClick={logout} title="Sign Out"
-            style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:500, color:C.dim, transition:"all 0.2s" }}
+            style={{ display:"flex", alignItems:"center", gap:4, padding:"5px 10px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:10, fontWeight:500, color:C.dim, transition:"all 0.2s" }}
             onMouseOver={e=>{e.currentTarget.style.borderColor=C.red;e.currentTarget.style.color=C.red}} onMouseOut={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.dim}}>
-            <I.LogOut s={13}/> Logout
+            <I.LogOut s={12}/> Logout
+          </button>
+        </div>
+
+        {/* Mobile: compact status + hamburger */}
+        <div className="al-mobile-toggle" style={{ display:"none", alignItems:"center", gap:6 }}>
+          {activeThreats > 0 && (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"4px 10px", background:C.redDim, border:`1px solid ${C.redBdr}`, borderRadius:6, animation:"pulse 2s infinite" }}>
+              <span style={{ color:C.red, fontSize:10, fontWeight:700 }}>{activeThreats}</span>
+            </div>
+          )}
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{ display:"flex", alignItems:"center", justifyContent:"center", width:36, height:36, border:`1px solid ${C.border}`, borderRadius:8, background:"transparent", cursor:"pointer", color:C.dim, flexShrink:0 }}>
+            {mobileMenuOpen ? <I.X s={18}/> : <I.Menu s={18}/>}
           </button>
         </div>
       </header>
 
-      <nav style={{ display:"flex", gap:2, padding:"8px 24px", borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
+      {/* Mobile dropdown menu */}
+      {mobileMenuOpen && (
+        <div className="al-mobile-menu">
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"4px 0" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, color:C.dim, fontSize:11 }}>
+              <I.User s={13}/> <span style={{ color:C.bright, fontWeight:600 }}>{userName}</span>
+            </div>
+            <span style={{ fontFamily:"'Fira Code'", fontSize:10, color:C.dim }}>{now.toLocaleTimeString()}</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 0" }}>
+            {activeThreats > 0 ? (
+              <div style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", background:C.redDim, border:`1px solid ${C.redBdr}`, borderRadius:6, animation:"pulse 2s infinite", flex:1, justifyContent:"center" }}>
+                <div style={{ width:6, height:6, borderRadius:"50%", background:C.red }}/><span style={{ color:C.red, fontSize:11, fontWeight:600 }}>{activeThreats} THREAT{activeThreats>1?"S":""}</span>
+              </div>
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", background:C.greenDim, border:`1px solid ${C.greenBdr}`, borderRadius:6, flex:1, justifyContent:"center" }}>
+                <I.Shield s={12} style={{ color:C.green }}/><span style={{ color:C.green, fontSize:11, fontWeight:600 }}>SECURED</span>
+              </div>
+            )}
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={() => { setShowInstallAll(true); setMobileMenuOpen(false); }}
+              style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 12px", background:`linear-gradient(135deg,${C.green},${C.blue})`, border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:600, color:"#fff" }}>
+              <I.Download s={14}/> Install App
+            </button>
+            <button onClick={() => { logout(); setMobileMenuOpen(false); }}
+              style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:500, color:C.dim }}>
+              <I.LogOut s={13}/> Logout
+            </button>
+          </div>
+        </div>
+      )}
+
+      <nav className="al-nav">
         {TABS.map(t => (
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 12px", border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:11, fontWeight:tab===t.id?600:400, whiteSpace:"nowrap", background:tab===t.id?`${C.green}12`:"transparent", color:tab===t.id?C.green:C.dim, transition:"all 0.2s" }}>
+          <button key={t.id} onClick={()=>{setTab(t.id);setMobileMenuOpen(false);}} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 10px", border:"none", borderRadius:6, cursor:"pointer", fontFamily:"inherit", fontSize:10, fontWeight:tab===t.id?600:400, whiteSpace:"nowrap", background:tab===t.id?`${C.green}12`:"transparent", color:tab===t.id?C.green:C.dim, transition:"all 0.2s" }}>
             {t.icon}{t.label}
             {t.id==="threats"&&activeThreats>0&&<Badge color={C.red} style={{ fontSize:8, padding:"1px 5px" }}>{activeThreats}</Badge>}
           </button>
         ))}
       </nav>
 
-      <main style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
+      <main className="al-main">
         {tab==="overview" && <OverviewTab checks={checks} setChecks={setChecksAndSave} threats={threats} setThreats={setThreatsAndSave} accounts={accounts} setAccounts={setAccountsAndSave} scanLog={scanLog} monitors={monitors} userName={userName} setTab={setTab} addLog={addLog} deviceCleaned={deviceCleaned} setDeviceCleaned={setDeviceCleaned} />}
         {tab==="breach" && <BreachTab addLog={addLog} />}
         {tab==="passwords" && <PasswordTab />}
