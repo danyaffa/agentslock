@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Component } from "react";
-import { auth, db, firebaseError, signUp, logIn, logInWithGoogle, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, getAllUsers, adminDeleteUser, adminUpdateUser, changeDisplayName, changeEmail, changePassword } from "./firebase.js";
+import { auth, db, firebaseError, signUp, logIn, logInWithGoogle, logOut, onAuth, loadUserData, saveUserData, saveSubscription, loadSubscription, getAllUsers, adminDeleteUser, adminUpdateUser, changeDisplayName, changeEmail, changePassword, deleteOwnData, deleteOwnAccount } from "./firebase.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AGENTSLOCK v4.0 — Full-Stack Personal Cybersecurity Platform
@@ -323,28 +323,51 @@ function AuthScreen({ onLogin, onSignup, onGoogleLogin, threatStatus }) {
 
   const handleKey = (e) => { if (e.key === "Enter" && !busy) submit(); };
 
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif" }} onKeyDown={handleKey}>
-      <div style={{ width: 400, padding: 40 }}>
-        <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-            <I.Shield s={28} style={{ color: "#fff" }} />
-          </div>
-          <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 28, color: C.bright, margin: "0 0 4px", letterSpacing: "0.06em" }}>AGENTSLOCK</h1>
-          <p style={{ color: C.dim, fontSize: 12 }}>Personal Cybersecurity Platform</p>
-          <p style={{ color: C.text, fontSize: 11, marginTop: 12, lineHeight: 1.6, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
-            Your all-in-one security dashboard — check passwords against known breaches, analyze password strength, scan websites for vulnerabilities, harden your devices, and respond to incidents with guided playbooks.
-          </p>
-        </div>
+  const BENEFITS = [
+    { icon: <I.Database />, title: "Breach Detection", desc: "Check passwords against known breaches using k-anonymity" },
+    { icon: <I.Key />, title: "Password Strength", desc: "Analyse strength with entropy calculations & generate secure passwords" },
+    { icon: <I.Globe />, title: "Web Scanner", desc: "SSL/TLS grading & security header analysis for any website" },
+    { icon: <I.Monitor />, title: "Device Hardening", desc: "56-point security checklist for Windows, Android, iOS & macOS" },
+    { icon: <I.User />, title: "Account Auditing", desc: "Track 2FA status, app passwords & risk levels across all accounts" },
+    { icon: <I.Alert />, title: "Threat Monitoring", desc: "Real-time threat management with severity filtering & blocking" },
+    { icon: <I.Activity />, title: "Uptime Monitoring", desc: "Website availability monitoring with response time graphs" },
+    { icon: <I.Zap />, title: "Incident Response", desc: "6-step emergency response protocol with 23 guided actions" },
+    { icon: <I.BarChart />, title: "Security Reports", desc: "Export comprehensive security audit reports for compliance" },
+    { icon: <I.Shield />, title: "Auto Protection", desc: "Blocks WebRTC leaks, spoofs fingerprints & enables tracking protection" },
+  ];
 
-        {/* Threat Status Indicator */}
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Space Grotesk', sans-serif", overflowY: "auto" }} onKeyDown={handleKey}>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}`}</style>
+
+      {/* Hero Section */}
+      <div style={{ textAlign: "center", padding: "60px 20px 40px" }}>
+        <div style={{ width: 72, height: 72, borderRadius: 18, background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 20, boxShadow: `0 12px 40px ${C.green}30` }}>
+          <I.Shield s={36} style={{ color: "#fff" }} />
+        </div>
+        <h1 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 36, color: C.bright, margin: "0 0 6px", letterSpacing: "0.06em" }}>AGENTSLOCK</h1>
+        <p style={{ color: C.green, fontSize: 14, fontWeight: 600, letterSpacing: "0.04em" }}>Personal Cybersecurity Platform</p>
+        <p style={{ color: C.text, fontSize: 13, marginTop: 16, lineHeight: 1.7, maxWidth: 520, marginLeft: "auto", marginRight: "auto" }}>
+          Your all-in-one security command centre. Detect breaches, analyse passwords, scan websites, harden devices, monitor threats, and respond to incidents — all from one dashboard.
+        </p>
+
+        {/* Free Trial Badge */}
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 20, padding: "10px 24px", borderRadius: 30, background: `linear-gradient(135deg, ${C.green}15, ${C.blue}15)`, border: `1px solid ${C.green}30` }}>
+          <I.Star s={16} style={{ color: C.green }} />
+          <span style={{ color: C.green, fontSize: 14, fontWeight: 700 }}>14-Day Free Trial</span>
+          <span style={{ color: C.dim, fontSize: 12 }}>— No credit card required</span>
+        </div>
+      </div>
+
+      {/* Threat Status Indicator */}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
         {threatStatus && (() => {
           const safe = threatStatus.safe;
           const color = safe ? C.green : C.red;
           return (
             <div style={{
               display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
-              borderRadius: 10, marginBottom: 16,
+              borderRadius: 10, marginBottom: 24,
               background: safe ? `${C.green}10` : `${C.red}10`,
               border: `1px solid ${color}30`,
             }}>
@@ -366,66 +389,112 @@ function AuthScreen({ onLogin, onSignup, onGoogleLogin, threatStatus }) {
             </div>
           );
         })()}
+      </div>
 
-        <Card>
-          <div style={{ display: "flex", marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
-            {["login", "signup"].map(m => (
-              <button key={m} onClick={() => { setMode(m); setErr(""); }} style={{
-                flex: 1, padding: "10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
-                background: mode === m ? `${C.green}15` : C.bg, color: mode === m ? C.green : C.dim, textTransform: "capitalize",
-              }}>{m === "login" ? "Sign In" : "Create Account"}</button>
+      {/* Main Content: Benefits + Auth Form side by side on desktop */}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px 40px", display: "flex", gap: 32, flexWrap: "wrap", justifyContent: "center" }}>
+
+        {/* Benefits Grid */}
+        <div style={{ flex: "1 1 440px", minWidth: 300 }}>
+          <h2 style={{ fontFamily: "'Chakra Petch', sans-serif", fontSize: 18, color: C.bright, marginBottom: 16, letterSpacing: "0.04em" }}>Everything You Need to Stay Secure</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {BENEFITS.map((b, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, padding: "12px 14px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}>
+                <span style={{ color: C.green, flexShrink: 0, marginTop: 2 }}>{b.icon}</span>
+                <div>
+                  <div style={{ color: C.bright, fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{b.title}</div>
+                  <div style={{ color: C.dim, fontSize: 10, lineHeight: 1.5 }}>{b.desc}</div>
+                </div>
+              </div>
             ))}
           </div>
 
-          {mode === "signup" && (
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Name</label>
-              <Input value={name} onChange={setName} placeholder="Your name" icon={<I.User />} />
+          {/* Trust Indicators */}
+          <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+            {[
+              { icon: <I.Lock s={14} />, text: "Bank-grade encryption" },
+              { icon: <I.Server s={14} />, text: "Firebase cloud sync" },
+              { icon: <I.Download s={14} />, text: "Works offline (PWA)" },
+              { icon: <I.Shield s={14} />, text: "Zero data sharing" },
+            ].map((t, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.dim }}>
+                <span style={{ color: C.green }}>{t.icon}</span>{t.text}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Auth Form */}
+        <div style={{ flex: "0 1 380px", minWidth: 300 }}>
+          <Card>
+            <div style={{ display: "flex", marginBottom: 20, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
+              {["login", "signup"].map(m => (
+                <button key={m} onClick={() => { setMode(m); setErr(""); }} style={{
+                  flex: 1, padding: "10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+                  background: mode === m ? `${C.green}15` : C.bg, color: mode === m ? C.green : C.dim, textTransform: "capitalize",
+                }}>{m === "login" ? "Sign In" : "Create Account"}</button>
+              ))}
             </div>
-          )}
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Email</label>
-            <Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" icon={<I.Mail />} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Password</label>
-            <Input value={pass} onChange={setPass} placeholder="••••••••" type="password" icon={<I.Lock />} />
-          </div>
 
-          {/* Promo Code — shown on both Login and Signup */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Promo Code <span style={{ color: C.dim, fontStyle: "italic" }}>(optional)</span></label>
-            <Input value={promoCode} onChange={setPromoCode} placeholder="Enter promo code" icon={<I.Zap />} />
-            <p style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Have an invite code? Enter it to get free access.</p>
-          </div>
+            {mode === "signup" && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Name</label>
+                <Input value={name} onChange={setName} placeholder="Your name" icon={<I.User />} />
+              </div>
+            )}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Email</label>
+              <Input value={email} onChange={setEmail} placeholder="you@example.com" type="email" icon={<I.Mail />} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Password</label>
+              <Input value={pass} onChange={setPass} placeholder="••••••••" type="password" icon={<I.Lock />} />
+            </div>
 
-          {err && <div style={{ padding: "8px 12px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
+            {/* Promo Code — shown on both Login and Signup */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, color: C.dim, marginBottom: 4, display: "block" }}>Promo Code <span style={{ color: C.dim, fontStyle: "italic" }}>(optional)</span></label>
+              <Input value={promoCode} onChange={setPromoCode} placeholder="Enter promo code" icon={<I.Zap />} />
+              <p style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>Have an invite code? Enter it to get free access.</p>
+            </div>
 
-          <Btn onClick={submit} disabled={busy} style={{ width: "100%", justifyContent: "center", padding: "12px" }}>
-            <I.LogIn /> {busy ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
-          </Btn>
+            {err && <div style={{ padding: "8px 12px", background: C.redDim, border: `1px solid ${C.redBdr}`, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
-            <div style={{ flex: 1, height: 1, background: C.border }} />
-            <span style={{ fontSize: 11, color: C.dim }}>or</span>
-            <div style={{ flex: 1, height: 1, background: C.border }} />
-          </div>
+            <Btn onClick={submit} disabled={busy} style={{ width: "100%", justifyContent: "center", padding: "12px" }}>
+              <I.LogIn /> {busy ? "Please wait..." : mode === "login" ? "Sign In" : "Start Free Trial"}
+            </Btn>
 
-          <button onClick={handleGoogleLogin} disabled={busy} style={{
-            width: "100%", padding: "12px", borderRadius: 8, cursor: busy ? "not-allowed" : "pointer",
-            background: C.bg, border: `1px solid ${C.border}`, color: C.bright,
-            fontSize: 13, fontFamily: "inherit", fontWeight: 600,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            opacity: busy ? 0.5 : 1, transition: "all 0.2s",
-          }}>
-            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-            Sign in with Google
-          </button>
-        </Card>
+            {mode === "signup" && (
+              <div style={{ textAlign: "center", marginTop: 8, fontSize: 10, color: C.dim }}>
+                14-day free trial, then $18/month. Cancel anytime.
+              </div>
+            )}
 
-        <p style={{ textAlign: "center", color: C.dim, fontSize: 11, marginTop: 20 }}>
-          🔒 Secured by Firebase Authentication & Firestore
-        </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
+              <div style={{ flex: 1, height: 1, background: C.border }} />
+              <span style={{ fontSize: 11, color: C.dim }}>or</span>
+              <div style={{ flex: 1, height: 1, background: C.border }} />
+            </div>
+
+            <button onClick={handleGoogleLogin} disabled={busy} style={{
+              width: "100%", padding: "12px", borderRadius: 8, cursor: busy ? "not-allowed" : "pointer",
+              background: C.bg, border: `1px solid ${C.border}`, color: C.bright,
+              fontSize: 13, fontFamily: "inherit", fontWeight: 600,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              opacity: busy ? 0.5 : 1, transition: "all 0.2s",
+            }}>
+              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+              Sign in with Google
+            </button>
+          </Card>
+
+          <p style={{ textAlign: "center", color: C.dim, fontSize: 10, marginTop: 16 }}>
+            Secured by Firebase Authentication & Firestore
+          </p>
+          <p style={{ textAlign: "center", color: C.dim, fontSize: 9, marginTop: 6 }}>
+            {"\u00A9"} 2026 Leffler International Investments. All rights reserved.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -444,6 +513,45 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
   const [paypalReady, setPaypalReady] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
+  const [activatingTrial, setActivatingTrial] = useState(false);
+
+  // Check if user qualifies for free trial (account created less than 14 days ago)
+  const [trialEligible, setTrialEligible] = useState(false);
+  const [trialDaysLeft, setTrialDaysLeft] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    loadUserData(user.uid).then(data => {
+      if (data?.createdAt) {
+        const created = typeof data.createdAt === "number" ? data.createdAt : new Date(data.createdAt).getTime();
+        const daysSinceCreation = (Date.now() - created) / (1000 * 60 * 60 * 24);
+        if (daysSinceCreation <= 14 && (!data.subscription || data.subscription.plan === "trial")) {
+          setTrialEligible(true);
+          setTrialDaysLeft(Math.max(0, Math.ceil(14 - daysSinceCreation)));
+        }
+      }
+    }).catch(() => {});
+  }, [user?.uid]);
+
+  const startFreeTrial = async () => {
+    setActivatingTrial(true);
+    setError("");
+    try {
+      const trialData = {
+        status: "active",
+        plan: "trial",
+        amount: 0,
+        currency: "USD",
+        subscribedAt: new Date().toISOString(),
+        trialEnds: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        provider: "trial",
+      };
+      await saveSubscription(user.uid, trialData);
+      onSubscribed(trialData);
+    } catch (e) {
+      setError("Failed to activate trial. Please try again.");
+      setActivatingTrial(false);
+    }
+  };
 
   useEffect(() => {
     // If PayPal SDK is already loaded, use it
@@ -505,7 +613,7 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
           await saveSubscription(user.uid, subData);
           onSubscribed(subData);
         } catch (e) {
-          setError("Failed to save subscription. Please contact support.");
+          setError("Failed to save subscription. Please try again or refresh the page.");
           setProcessing(false);
         }
       },
@@ -547,6 +655,27 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
         <div style={{ color: C.dim, fontSize: 12, marginTop: 8 }}>Welcome, <span style={{ color: C.bright }}>{user.displayName || user.email?.split("@")[0]}</span></div>
       </div>
 
+      {/* Free Trial Card */}
+      {trialEligible && (
+        <div style={{ width: "100%", maxWidth: 480, marginBottom: 20 }}>
+          <Card style={{ border: `1px solid ${C.green}40`, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${C.green}, ${C.cyan}, ${C.green})`, backgroundSize: "200% auto", animation: "shimmer 3s linear infinite" }} />
+            <div style={{ textAlign: "center", paddingTop: 8 }}>
+              <Badge color={C.cyan} style={{ fontSize: 12, padding: "5px 16px", marginBottom: 12, display: "inline-block" }}>FREE TRIAL</Badge>
+              <h3 style={{ fontFamily: "'Chakra Petch'", fontSize: 22, color: C.bright, margin: "8px 0 6px" }}>Start Your 14-Day Free Trial</h3>
+              <p style={{ color: C.dim, fontSize: 12, marginBottom: 6 }}>Full access to all cybersecurity tools. No credit card required.</p>
+              <p style={{ color: C.green, fontSize: 12, fontWeight: 600, marginBottom: 16 }}>
+                {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} remaining — try everything risk-free
+              </p>
+              <Btn onClick={startFreeTrial} disabled={activatingTrial} color={C.green} style={{ width: "100%", justifyContent: "center", padding: "14px 20px", fontSize: 15 }}>
+                <I.Zap /> {activatingTrial ? "Activating..." : "Start Free Trial"}
+              </Btn>
+              <p style={{ color: C.dim, fontSize: 10, marginTop: 10 }}>After 14 days, subscribe at $18/month to continue. Cancel anytime.</p>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Pricing Card */}
       <div style={{ width: "100%", maxWidth: 480, marginBottom: 32 }}>
         <Card style={{ position: "relative", overflow: "hidden", border: `1px solid ${C.green}40` }}>
@@ -560,6 +689,7 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
               <span style={{ color: C.dim, fontSize: 16 }}>USD / month</span>
             </div>
             <p style={{ color: C.dim, fontSize: 12, marginTop: 8 }}>Full access to all cybersecurity tools</p>
+            {trialEligible && <p style={{ color: C.green, fontSize: 11, marginTop: 4 }}>Or start your free trial above</p>}
           </div>
 
           {/* Features List */}
@@ -606,6 +736,9 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
         onMouseOver={e => e.currentTarget.style.color = C.red} onMouseOut={e => e.currentTarget.style.color = C.dim}>
         <I.LogOut s={14} /> Sign out
       </button>
+      <p style={{ textAlign: "center", color: C.dim, fontSize: 9, marginTop: 12 }}>
+        {"\u00A9"} 2026 Leffler International Investments. All rights reserved.
+      </p>
     </div>
   );
 }
@@ -1988,6 +2121,9 @@ function IncidentTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function HelpTab({ installPrompt, setInstallPrompt }) {
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiResult, setAiResult] = useState(null);
+  const [aiSearching, setAiSearching] = useState(false);
 
   const handleInstall = async () => {
     if (!installPrompt) return;
@@ -2011,25 +2147,100 @@ function HelpTab({ installPrompt, setInstallPrompt }) {
   const FAQ_ITEMS = [
     {
       q: "Is it advisable to add real-time virus, malware, or ransomware blocking?",
-      a: `AgentsLock is a web-based cybersecurity dashboard that runs in your browser. As a Progressive Web App (PWA), it operates within the browser sandbox and does not have the low-level system access required to intercept files, scan memory, or block executables in real time the way a native antivirus does.\n\nHowever, AgentsLock strongly complements your existing antivirus by:\n\n• Checking if your passwords have been exposed in data breaches (k-anonymity)\n• Guiding you through device hardening (enabling Defender, BitLocker, Play Protect, etc.)\n• Monitoring your accounts for 2FA status and session anomalies\n• Providing an incident response playbook if you are compromised\n\nRecommendation: Keep a dedicated antivirus/anti-malware tool running on each device (Windows Defender, Malwarebytes, Bitdefender, etc.) and use AgentsLock as your security command centre to monitor, audit, and harden everything in one place.`
+      a: `AgentsLock is a web-based cybersecurity dashboard that runs in your browser. As a Progressive Web App (PWA), it operates within the browser sandbox and does not have the low-level system access required to intercept files, scan memory, or block executables in real time the way a native antivirus does.\n\nHowever, AgentsLock strongly complements your existing antivirus by:\n\n• Checking if your passwords have been exposed in data breaches (k-anonymity)\n• Guiding you through device hardening (enabling Defender, BitLocker, Play Protect, etc.)\n• Monitoring your accounts for 2FA status and session anomalies\n• Providing an incident response playbook if you are compromised\n\nRecommendation: Keep a dedicated antivirus/anti-malware tool running on each device (Windows Defender, Malwarebytes, Bitdefender, etc.) and use AgentsLock as your security command centre to monitor, audit, and harden everything in one place.`,
+      tags: ["virus", "malware", "ransomware", "antivirus", "blocking", "real-time", "protection"]
     },
     {
       q: "Should AgentsLock include a firewall or intrusion detection system (IDS)?",
-      a: `A true firewall or IDS requires deep network-level access — inspecting packets, managing port rules, and monitoring traffic at the operating system or router level. Browsers and PWAs are intentionally sandboxed away from this layer for security reasons.\n\nWhat AgentsLock does instead:\n\n• WebRTC leak blocking — prevents your real IP from being exposed even on a VPN\n• Browser fingerprint spoofing — reduces your trackability across websites\n• Security header analysis — scans websites you visit for missing protections\n• SSL/TLS grading — checks if a site's encryption is properly configured\n• DNS poisoning awareness — guides you to enable encrypted DNS (DoH/DoT)\n• Uptime & endpoint monitoring — alerts you when your websites go down\n\nRecommendation: Use your operating system's built-in firewall (Windows Firewall, macOS Application Firewall, Linux iptables/ufw) or a hardware firewall on your router. For IDS, consider tools like Snort, Suricata, or Pi-hole for DNS-level filtering. AgentsLock will help you verify these are properly configured through its Device Hardening checklist.`
+      a: `A true firewall or IDS requires deep network-level access — inspecting packets, managing port rules, and monitoring traffic at the operating system or router level. Browsers and PWAs are intentionally sandboxed away from this layer for security reasons.\n\nWhat AgentsLock does instead:\n\n• WebRTC leak blocking — prevents your real IP from being exposed even on a VPN\n• Browser fingerprint spoofing — reduces your trackability across websites\n• Security header analysis — scans websites you visit for missing protections\n• SSL/TLS grading — checks if a site's encryption is properly configured\n• DNS poisoning awareness — guides you to enable encrypted DNS (DoH/DoT)\n• Uptime & endpoint monitoring — alerts you when your websites go down\n\nRecommendation: Use your operating system's built-in firewall (Windows Firewall, macOS Application Firewall, Linux iptables/ufw) or a hardware firewall on your router. For IDS, consider tools like Snort, Suricata, or Pi-hole for DNS-level filtering. AgentsLock will help you verify these are properly configured through its Device Hardening checklist.`,
+      tags: ["firewall", "ids", "intrusion", "network", "packets", "dns"]
     },
     {
       q: "What makes AgentsLock different from antivirus software?",
-      a: `Antivirus software is reactive — it scans for known threats on your device. AgentsLock is proactive and holistic:\n\n• Breach detection: Checks if your passwords have appeared in known data breaches\n• Password audit: Analyses strength and estimates crack time\n• Account security: Tracks 2FA status across all your accounts\n• Device hardening: 56 checks across Windows, Android, iOS, macOS, and browsers\n• Threat management: Log, track, and resolve security incidents\n• Incident response: Step-by-step emergency playbook\n• Monitoring: Real-time uptime checking for your websites\n• Reports: Export full security audit reports\n\nThink of AgentsLock as your personal security operations centre (SOC) — it doesn't replace your antivirus, it makes sure your entire security posture is covered.`
+      a: `Antivirus software is reactive — it scans for known threats on your device. AgentsLock is proactive and holistic:\n\n• Breach detection: Checks if your passwords have appeared in known data breaches\n• Password audit: Analyses strength and estimates crack time\n• Account security: Tracks 2FA status across all your accounts\n• Device hardening: 56 checks across Windows, Android, iOS, macOS, and browsers\n• Threat management: Log, track, and resolve security incidents\n• Incident response: Step-by-step emergency playbook\n• Monitoring: Real-time uptime checking for your websites\n• Reports: Export full security audit reports\n\nThink of AgentsLock as your personal security operations centre (SOC) — it doesn't replace your antivirus, it makes sure your entire security posture is covered.`,
+      tags: ["antivirus", "difference", "compare", "features", "soc"]
     },
     {
       q: "Is my data safe in AgentsLock?",
-      a: `Yes. AgentsLock takes multiple precautions:\n\n• Passwords are never sent to any server — breach checks use k-anonymity (only the first 5 characters of a SHA-1 hash are sent)\n• Authentication is handled by Firebase Auth (Google infrastructure)\n• Data is stored in Firestore with per-user access rules\n• A local cache in localStorage provides offline access\n• The app works as a PWA — no data leaves your device unless you are signed in\n• All connections use HTTPS encryption in transit`
+      a: `Yes. AgentsLock takes multiple precautions:\n\n• Passwords are never sent to any server — breach checks use k-anonymity (only the first 5 characters of a SHA-1 hash are sent)\n• Authentication is handled by Firebase Auth (Google infrastructure)\n• Data is stored in Firestore with per-user access rules\n• A local cache in localStorage provides offline access\n• The app works as a PWA — no data leaves your device unless you are signed in\n• All connections use HTTPS encryption in transit`,
+      tags: ["data", "safe", "privacy", "security", "encryption", "firebase"]
     },
     {
       q: "Can I use AgentsLock offline?",
-      a: `Yes. AgentsLock is a Progressive Web App with a service worker that caches the entire application. Once installed, the dashboard loads offline. Features that require network (breach checks, website scanning, uptime monitoring) will work again when connectivity is restored. Your data is cached locally and syncs to the cloud when you reconnect.`
+      a: `Yes. AgentsLock is a Progressive Web App with a service worker that caches the entire application. Once installed, the dashboard loads offline. Features that require network (breach checks, website scanning, uptime monitoring) will work again when connectivity is restored. Your data is cached locally and syncs to the cloud when you reconnect.`,
+      tags: ["offline", "pwa", "install", "cache", "service worker"]
+    },
+    {
+      q: "How do I cancel my subscription?",
+      a: `You can manage your subscription directly through PayPal:\n\n1. Go to paypal.com/myaccount/autopay\n2. Find your AgentsLock subscription\n3. Click "Cancel" to stop future payments\n\nAlternatively, go to Settings in the app and click "Manage" next to your subscription details. Your access will continue until the end of your current billing period.\n\nIf you want to completely remove your account and data, use the "Stop & Delete My Account" option in Settings.`,
+      tags: ["cancel", "subscription", "payment", "paypal", "stop", "unsubscribe"]
+    },
+    {
+      q: "How do I delete my account and data?",
+      a: `You can delete your account directly from AgentsLock — no email required:\n\n1. Go to Settings tab\n2. Scroll down to "Disconnect Account"\n3. Click "Stop & Delete My Account"\n4. Type DELETE to confirm\n5. Your account, all data, notes, scan history, and cloud-stored information will be permanently removed\n\nTo remove just your data without deleting the account, use "Remove My Data" in the Data Management section.\n\nBoth actions are processed automatically through Firebase — no waiting for support.`,
+      tags: ["delete", "account", "remove", "data", "gdpr", "privacy", "erase"]
+    },
+    {
+      q: "What does the free trial include?",
+      a: `Your 14-day free trial includes full access to every feature in AgentsLock:\n\n• Password breach detection\n• Password strength analyzer & generator\n• Website vulnerability scanner (SSL/TLS + headers)\n• 56-point device hardening checklist\n• Account security auditing with 2FA tracking\n• Real-time threat monitoring & blocking\n• Uptime monitoring for your websites\n• Incident response playbooks\n• Security reports & scoring\n• Auto-protection (WebRTC blocking, fingerprint spoofing, tracking opt-out)\n\nNo credit card is required to start. After 14 days, subscribe at $18/month via PayPal to continue using the platform.`,
+      tags: ["trial", "free", "14 days", "features", "pricing", "cost"]
+    },
+    {
+      q: "How does the password breach check work?",
+      a: `AgentsLock uses the Pwned Passwords API with k-anonymity to check if your passwords have been exposed in data breaches:\n\n1. Your password is hashed using SHA-1 locally on your device\n2. Only the first 5 characters of the hash are sent to the API\n3. The API returns all hashes that start with those 5 characters\n4. Your device compares the full hash locally — your password never leaves your device\n\nThis means neither AgentsLock nor any server ever sees your actual password. The technique is called k-anonymity and is the gold standard for privacy-preserving breach checking.`,
+      tags: ["breach", "password", "check", "pwned", "hash", "k-anonymity", "privacy"]
+    },
+    {
+      q: "How do I install AgentsLock on my phone or computer?",
+      a: `AgentsLock is a Progressive Web App (PWA) — install it on any device:\n\n• Android: Open agentslock.com in Chrome → Tap menu (⋮) → "Install app"\n• iPhone/iPad: Open in Safari → Tap Share (↑) → "Add to Home Screen"\n• Windows: Open in Chrome/Edge → Click install icon in address bar\n• macOS: Open in Chrome/Edge → Click install icon → "Install"\n• Linux: Open in Chrome → Click install icon in address bar\n\nOnce installed, it works offline, loads instantly, and receives automatic updates. No app store download required.`,
+      tags: ["install", "phone", "android", "iphone", "ios", "windows", "mac", "pwa", "app"]
+    },
+    {
+      q: "Who owns AgentsLock?",
+      a: `AgentsLock is a product of Leffler International Investments. All intellectual property, trademarks, logos, and associated branding are owned by Leffler International Investments. The platform is governed by Australian law under the jurisdiction of New South Wales, Australia.`,
+      tags: ["owner", "company", "leffler", "investment", "copyright", "who"]
     },
   ];
+
+  // AI-powered FAQ search — matches query against questions, answers, and tags
+  const handleAiSearch = () => {
+    if (!aiQuery.trim()) { setAiResult(null); return; }
+    setAiSearching(true);
+    // Simulate AI processing delay for natural feel
+    setTimeout(() => {
+      const q = aiQuery.toLowerCase();
+      const words = q.split(/\s+/).filter(w => w.length > 2);
+
+      const scored = FAQ_ITEMS.map((item, idx) => {
+        let score = 0;
+        const qLower = item.q.toLowerCase();
+        const aLower = item.a.toLowerCase();
+        const allTags = (item.tags || []).join(" ").toLowerCase();
+
+        // Exact phrase match in question (highest weight)
+        if (qLower.includes(q)) score += 100;
+        // Exact phrase match in answer
+        if (aLower.includes(q)) score += 50;
+
+        words.forEach(w => {
+          if (qLower.includes(w)) score += 20;
+          if (aLower.includes(w)) score += 5;
+          if (allTags.includes(w)) score += 30;
+        });
+
+        return { ...item, idx, score };
+      });
+
+      const matches = scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score);
+
+      if (matches.length > 0) {
+        setAiResult({ matches: matches.slice(0, 3), query: aiQuery });
+      } else {
+        setAiResult({ matches: [], query: aiQuery });
+      }
+      setAiSearching(false);
+    }, 400);
+  };
 
   const INSTALL_INSTRUCTIONS = {
     android: [
@@ -2101,6 +2312,66 @@ function HelpTab({ installPrompt, setInstallPrompt }) {
               ))}
             </div>
           </div>
+        </Sect>
+      </Card>
+
+      {/* ── AI-Powered FAQ Search ── */}
+      <Card glow={C.purple}>
+        <Sect title="Ask AgentsLock AI" icon={<I.Cpu />}>
+          <div style={{ color: C.text, fontSize: 12, marginBottom: 12 }}>
+            Have a question? Type it below and our smart FAQ assistant will find the best answer for you instantly.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <Input value={aiQuery} onChange={setAiQuery} placeholder="e.g. How do I delete my account?" icon={<I.Search />} style={{ flex: 1 }} />
+            <Btn onClick={handleAiSearch} disabled={aiSearching || !aiQuery.trim()} color={C.purple} style={{ flexShrink: 0 }}>
+              <I.Zap /> {aiSearching ? "Searching..." : "Ask"}
+            </Btn>
+          </div>
+
+          {/* Quick topic chips */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {["Password breach", "Delete account", "Free trial", "Install app", "Cancel subscription", "Offline use", "Who owns this"].map(topic => (
+              <button key={topic} onClick={() => { setAiQuery(topic); setTimeout(handleAiSearch, 50); }}
+                style={{ padding: "4px 12px", borderRadius: 20, background: `${C.purple}10`, border: `1px solid ${C.purple}30`, color: C.purple, fontSize: 10, fontFamily: "inherit", cursor: "pointer", transition: "all 0.2s" }}>
+                {topic}
+              </button>
+            ))}
+          </div>
+
+          {/* AI Search Results */}
+          {aiSearching && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px", background: C.bg, borderRadius: 8 }}>
+              <div style={{ width: 18, height: 18, border: `2px solid ${C.border}`, borderTopColor: C.purple, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <span style={{ color: C.purple, fontSize: 12 }}>Searching knowledge base...</span>
+            </div>
+          )}
+
+          {aiResult && !aiSearching && (
+            <div style={{ animation: "fadeIn 0.3s ease" }}>
+              {aiResult.matches.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.purple, fontWeight: 600 }}>
+                    <I.Cpu s={14} /> Found {aiResult.matches.length} relevant answer{aiResult.matches.length > 1 ? "s" : ""}
+                  </div>
+                  {aiResult.matches.map((m, i) => (
+                    <div key={i} style={{ padding: "14px 16px", background: C.bg, borderRadius: 10, border: `1px solid ${i === 0 ? `${C.purple}40` : C.border}` }}>
+                      <div style={{ color: i === 0 ? C.purple : C.bright, fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+                        {i === 0 && <Badge color={C.purple} style={{ marginRight: 8 }}>Best Match</Badge>}
+                        {m.q}
+                      </div>
+                      <div style={{ color: C.text, fontSize: 12, lineHeight: 1.8, whiteSpace: "pre-line" }}>{m.a}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: "16px", background: C.bg, borderRadius: 8, textAlign: "center" }}>
+                  <I.HelpCircle s={24} style={{ color: C.dim, marginBottom: 8 }} />
+                  <div style={{ color: C.dim, fontSize: 12, marginBottom: 4 }}>No matching answers found for "{aiResult.query}"</div>
+                  <div style={{ color: C.dim, fontSize: 11 }}>Try rephrasing your question or browse the FAQ below.</div>
+                </div>
+              )}
+            </div>
+          )}
         </Sect>
       </Card>
 
@@ -2204,6 +2475,13 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
   const [acctBusy, setAcctBusy] = useState(false);
   const isGoogleUser = user?.providerData?.[0]?.providerId === "google.com";
 
+  // Delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRemoveDataConfirm, setShowRemoveDataConfirm] = useState(false);
+  const [deleteTyped, setDeleteTyped] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   const showMsg = (type, text) => { setAcctMsg({ type, text }); setTimeout(() => setAcctMsg(null), 5000); };
 
   const handleNameChange = async () => {
@@ -2235,6 +2513,40 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
   const clearAll = () => {
     ["checks","accounts","threats","monitors","scanLog","irChecks"].forEach(k => LS.del(k));
     setDataCleared(true); setTimeout(() => setDataCleared(false), 3000);
+  };
+
+  // Remove all user data from Firebase (keeps account active)
+  const handleRemoveData = async () => {
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await deleteOwnData(user.uid);
+      // Clear local storage too
+      ["checks","accounts","threats","monitors","scanLog","irChecks","deviceCleaned"].forEach(k => LS.del(k));
+      showMsg("ok", "All your data has been removed from our servers.");
+      setShowRemoveDataConfirm(false);
+    } catch (e) {
+      setDeleteError(e.message || "Failed to remove data. Please try again.");
+    }
+    setDeleteBusy(false);
+  };
+
+  // Completely delete account + all data
+  const handleDeleteAccount = async () => {
+    if (deleteTyped !== "DELETE") return;
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await deleteOwnAccount();
+      // Clear all local data
+      Object.keys(localStorage).filter(k => k.startsWith("al_")).forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+      const msg = e.code === "auth/requires-recent-login"
+        ? "For security, please sign out, sign back in, and try again."
+        : (e.message || "Failed to delete account.");
+      setDeleteError(msg);
+      setDeleteBusy(false);
+    }
   };
 
   const fieldStyle = { width: "100%", padding: "8px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, color: C.bright, fontSize: 12, fontFamily: "inherit", outline: "none" };
@@ -2306,19 +2618,26 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.bg, borderRadius: 8 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ color: C.bright, fontWeight: 600 }}>{subscription?.provider === "promo_code" ? "Promo Access" : "Pro Plan"}</span>
+                <span style={{ color: C.bright, fontWeight: 600 }}>
+                  {subscription?.plan === "trial" ? "Free Trial" : subscription?.provider === "promo_code" ? "Promo Access" : "Pro Plan"}
+                </span>
                 <Badge color={C.green}>ACTIVE</Badge>
               </div>
-              <div style={{ color: C.dim, fontSize: 12 }}>{subscription?.provider === "promo_code" ? "Free access via promo code" : "$18.00 USD / month via PayPal"}</div>
+              <div style={{ color: C.dim, fontSize: 12 }}>
+                {subscription?.plan === "trial"
+                  ? `Free trial${subscription.trialEnds ? ` — ends ${new Date(subscription.trialEnds).toLocaleDateString()}` : ""}`
+                  : subscription?.provider === "promo_code" ? "Free access via promo code"
+                  : "$18.00 USD / month via PayPal"}
+              </div>
               {subscription?.subscribedAt && (
                 <div style={{ color: C.dim, fontSize: 10, marginTop: 2 }}>
-                  {subscription?.provider === "promo_code" ? "Activated" : "Subscribed"}: {new Date(subscription.subscribedAt).toLocaleDateString()}
+                  {subscription?.plan === "trial" ? "Started" : subscription?.provider === "promo_code" ? "Activated" : "Subscribed"}: {new Date(subscription.subscribedAt).toLocaleDateString()}
                   {subscription.subscriptionId && <> &middot; ID: {subscription.subscriptionId.slice(0, 12)}...</>}
                   {subscription.promoCode && <> &middot; Code: {subscription.promoCode}</>}
                 </div>
               )}
             </div>
-            {subscription?.provider !== "promo_code" && (
+            {subscription?.provider === "paypal" && (
               <a href="https://www.paypal.com/myaccount/autopay" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
                 <Btn color={C.blue}><I.ExternalLink /> Manage</Btn>
               </a>
@@ -2346,11 +2665,81 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
 
       <Card>
         <Sect title="Data Management" icon={<I.Database />}>
-          <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>All data is stored locally in your browser. Nothing is sent to any server.</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Btn onClick={clearAll} color={C.red}><I.Trash /> Clear All Data</Btn>
+          <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>Manage your data stored locally and in the cloud.</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Btn onClick={clearAll} color={C.orange}><I.Trash /> Clear Local Data</Btn>
+            <Btn onClick={() => setShowRemoveDataConfirm(true)} color={C.red}><I.Database /> Remove My Data</Btn>
           </div>
-          {dataCleared && <div style={{ color: C.green, fontSize: 12, marginTop: 8 }}>✅ All data cleared. Refresh to reset.</div>}
+          {dataCleared && <div style={{ color: C.green, fontSize: 12, marginTop: 8 }}>Local data cleared. Refresh to reset.</div>}
+
+          {/* Remove My Data Confirmation */}
+          {showRemoveDataConfirm && (
+            <div style={{ marginTop: 12, padding: "16px", background: `${C.red}08`, border: `1px solid ${C.redBdr}`, borderRadius: 10 }}>
+              <div style={{ color: C.red, fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Remove All My Data</div>
+              <div style={{ color: C.red, fontSize: 12, lineHeight: 1.7, marginBottom: 12 }}>
+                This will permanently delete all your data from our servers, including: scan history, account records, threat logs, monitoring data, device settings, and all notes. Your account login will remain active but all stored data will be gone.
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn onClick={handleRemoveData} disabled={deleteBusy} color={C.red}>
+                  <I.Trash /> {deleteBusy ? "Removing..." : "Yes, Remove My Data"}
+                </Btn>
+                <Btn onClick={() => { setShowRemoveDataConfirm(false); setDeleteError(""); }} color={C.dim}>Cancel</Btn>
+              </div>
+              {deleteError && <div style={{ color: C.red, fontSize: 11, marginTop: 8 }}>{deleteError}</div>}
+            </div>
+          )}
+        </Sect>
+      </Card>
+
+      {/* Disconnect / Stop / Delete Account */}
+      <Card glow={C.red}>
+        <Sect title="Disconnect Account" icon={<I.Alert />}>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.7, marginBottom: 12 }}>
+            If you no longer wish to use AgentsLock, you can permanently delete your account and all associated data. This action is irreversible.
+          </div>
+
+          {!showDeleteConfirm ? (
+            <Btn onClick={() => setShowDeleteConfirm(true)} color={C.red} style={{ padding: "10px 20px" }}>
+              <I.X /> Stop & Delete My Account
+            </Btn>
+          ) : (
+            <div style={{ padding: "20px", background: `${C.red}08`, border: `2px solid ${C.red}50`, borderRadius: 12 }}>
+              <div style={{ color: C.red, fontWeight: 700, fontSize: 16, marginBottom: 10 }}>
+                Are you sure you want to delete your account?
+              </div>
+              <div style={{ color: C.red, fontSize: 12, lineHeight: 1.8, marginBottom: 16, padding: "12px 16px", background: `${C.red}12`, borderRadius: 8, border: `1px solid ${C.red}30` }}>
+                <strong>WARNING:</strong> This action is permanent and cannot be undone. The following will be permanently removed:
+                <ul style={{ margin: "8px 0 0 16px", padding: 0 }}>
+                  <li>Your account and login credentials</li>
+                  <li>All security scan data and history</li>
+                  <li>Account records, threat logs, and notes</li>
+                  <li>Monitoring configurations and reports</li>
+                  <li>Your subscription and payment history</li>
+                  <li>All local and cloud-stored data</li>
+                </ul>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, color: C.red, marginBottom: 6, display: "block", fontWeight: 600 }}>
+                  Type DELETE to confirm
+                </label>
+                <input
+                  value={deleteTyped}
+                  onChange={e => setDeleteTyped(e.target.value)}
+                  placeholder="Type DELETE here"
+                  style={{ ...fieldStyle, borderColor: `${C.red}50`, color: C.red }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn onClick={handleDeleteAccount} disabled={deleteBusy || deleteTyped !== "DELETE"} color={C.red} style={{ padding: "10px 20px" }}>
+                  <I.Trash /> {deleteBusy ? "Deleting..." : "Permanently Delete Account"}
+                </Btn>
+                <Btn onClick={() => { setShowDeleteConfirm(false); setDeleteTyped(""); setDeleteError(""); }} color={C.dim} style={{ padding: "10px 20px" }}>
+                  Cancel
+                </Btn>
+              </div>
+              {deleteError && <div style={{ color: C.red, fontSize: 11, marginTop: 10 }}>{deleteError}</div>}
+            </div>
+          )}
         </Sect>
       </Card>
 
@@ -2358,7 +2747,7 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
         <Sect title="About & Legal" icon={<I.Shield />}>
           <div style={{ color: C.text, fontSize: 12 }}>
             <div style={{ marginBottom: 4 }}><span style={{ color: C.bright, fontWeight: 600 }}>AgentsLock v4.0</span> — Firebase-Secured Cybersecurity Platform</div>
-            <div style={{ color: C.dim, marginBottom: 4 }}>Firebase-Secured Cybersecurity Platform</div>
+            <div style={{ color: C.dim, marginBottom: 4 }}>A product of Leffler International Investments</div>
             <div style={{ color: C.dim }}>React + Vite + Firebase Auth + Firestore. Real-time cloud sync. PWA enabled.</div>
             <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <a href="https://agentslock.com" target="_blank" rel="noopener" style={{ color: C.green, textDecoration: "none", fontSize: 11 }}>agentslock.com</a>
@@ -2367,7 +2756,7 @@ function SettingsTab({ user, logout, setLegalPage, subscription }) {
               <button onClick={()=>setLegalPage("disclaimer")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>Disclaimer</button>
               <button onClick={()=>setLegalPage("about")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:11, fontFamily:"inherit", padding:0 }}>About</button>
             </div>
-            <div style={{ marginTop: 8, fontSize: 10, color: C.dim }}>{"\u00A9"} 2026 AgentsLock — All rights reserved. No reproduction without permission.</div>
+            <div style={{ marginTop: 8, fontSize: 10, color: C.dim }}>{"\u00A9"} 2026 Leffler International Investments. All rights reserved. No reproduction without permission.</div>
           </div>
         </Sect>
       </Card>
@@ -2395,9 +2784,10 @@ function LegalOverlay({ page, onClose }) {
   );
 
   const COMPANY = {
-    name: "AgentsLock",
+    name: "Leffler International Investments",
     brand: "AgentsLock",
     website: "agentslock.com",
+    parent: "Leffler International Investments",
   };
 
   const lastUpdated = "1 January 2026";
@@ -2665,10 +3055,12 @@ function LegalOverlay({ page, onClose }) {
         <div style={{ display:"grid", gap:8 }}>
           {[
             ["Platform", COMPANY.brand],
+            ["Company", COMPANY.parent],
             ["Website", COMPANY.website],
+            ["Jurisdiction", "New South Wales, Australia"],
           ].map(([label, val]) => (
             <div key={label} style={{ display:"flex", gap:8, fontSize:12 }}>
-              <span style={{ color:C.dim, minWidth:80 }}>{label}:</span>
+              <span style={{ color:C.dim, minWidth:100 }}>{label}:</span>
               <span style={{ color:C.bright, fontWeight:500 }}>{val}</span>
             </div>
           ))}
@@ -2676,8 +3068,8 @@ function LegalOverlay({ page, onClose }) {
       </div>
 
       {heading("Copyright & Intellectual Property")}
-      {para(`\u00A9 2026 ${COMPANY.brand}. All rights reserved.`)}
-      {para("All trademarks, logos, and data belong to their respective owners. No reproduction without permission. The AgentsLock name, logo, and all associated branding are the exclusive intellectual property of the Company.")}
+      {para(`\u00A9 2026 ${COMPANY.parent}. All rights reserved.`)}
+      {para(`All trademarks, logos, and data belong to their respective owners. No reproduction without permission. The ${COMPANY.brand} name, logo, and all associated branding are the exclusive intellectual property of ${COMPANY.parent}.`)}
       {para("This software and its source code are protected by copyright law and international treaties. Unauthorised reproduction or distribution of this program, or any portion of it, may result in severe civil and criminal penalties.")}
     </>
   );
@@ -2955,13 +3347,19 @@ function AdminDashboard({ user, onClose }) {
   const paypalUsers = users.filter(u => u.subscription?.provider === "paypal" && u.subscription?.status === "active");
   const promoUsers = users.filter(u => u.subscription?.provider === "promo_code" && u.subscription?.status === "active");
   const adminGranted = users.filter(u => u.subscription?.provider === "admin" && u.subscription?.status === "active");
+  const trialUsers = users.filter(u => u.subscription?.plan === "trial" && u.subscription?.status === "active");
   const activeSubscriptions = users.filter(u => u.subscription?.status === "active");
   const totalRevenue = paypalUsers.reduce((sum, u) => sum + (u.subscription?.amount || 0), 0);
   const noSubscription = users.filter(u => !u.subscription || u.subscription.status !== "active");
+  // Recent signups (last 7 days)
+  const recentSignups = users.filter(u => u.createdAt && (Date.now() - (typeof u.createdAt === "number" ? u.createdAt : new Date(u.createdAt).getTime())) < 7 * 24 * 60 * 60 * 1000);
+  // Conversion rate
+  const conversionRate = totalUsers > 0 ? Math.round((paypalUsers.length / totalUsers) * 100) : 0;
 
   const filteredUsers = users.filter(u => {
     const matchSearch = !search || u.email?.toLowerCase().includes(search.toLowerCase()) || u.displayName?.toLowerCase().includes(search.toLowerCase());
     if (filter === "paypal") return matchSearch && u.subscription?.provider === "paypal" && u.subscription?.status === "active";
+    if (filter === "trial") return matchSearch && u.subscription?.plan === "trial" && u.subscription?.status === "active";
     if (filter === "promo") return matchSearch && u.subscription?.provider === "promo_code" && u.subscription?.status === "active";
     if (filter === "admin_granted") return matchSearch && u.subscription?.provider === "admin" && u.subscription?.status === "active";
     if (filter === "none") return matchSearch && (!u.subscription || u.subscription.status !== "active");
@@ -3067,7 +3465,57 @@ function AdminDashboard({ user, onClose }) {
               <I.X s={24} style={{ color: C.red }} />
             </div>
           </Card>
+          <Card glow={C.cyan}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.dim, marginBottom: 4 }}>FREE TRIALS</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.bright, fontFamily: "'Chakra Petch'" }}>{trialUsers.length}</div>
+                <div style={{ fontSize: 10, color: C.dim }}>14-day trial active</div>
+              </div>
+              <I.Clock s={24} style={{ color: C.cyan }} />
+            </div>
+          </Card>
+          <Card glow={C.purple}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.dim, marginBottom: 4 }}>NEW THIS WEEK</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.bright, fontFamily: "'Chakra Petch'" }}>{recentSignups.length}</div>
+                <div style={{ fontSize: 10, color: C.dim }}>Signups in last 7 days</div>
+              </div>
+              <I.Activity s={24} style={{ color: C.purple }} />
+            </div>
+          </Card>
+          <Card glow={C.green}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.dim, marginBottom: 4 }}>CONVERSION RATE</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.bright, fontFamily: "'Chakra Petch'" }}>{conversionRate}%</div>
+                <div style={{ fontSize: 10, color: C.dim }}>Free → paid subscribers</div>
+              </div>
+              <I.BarChart s={24} style={{ color: C.green }} />
+            </div>
+          </Card>
         </div>
+
+        {/* Platform Overview */}
+        <Card style={{ marginBottom: 16 }}>
+          <h3 style={{ margin: "0 0 14px", fontFamily: "'Chakra Petch'", fontSize: 15, fontWeight: 600, color: C.bright }}>Platform Overview</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+            {[
+              { label: "PayPal Revenue (Monthly)", value: `$${totalRevenue}`, color: C.orange },
+              { label: "Annual Projected Revenue", value: `$${totalRevenue * 12}`, color: C.green },
+              { label: "Avg Revenue Per User", value: totalUsers > 0 ? `$${(totalRevenue / totalUsers).toFixed(2)}` : "$0", color: C.blue },
+              { label: "Active/Total Ratio", value: `${activeSubscriptions.length}/${totalUsers}`, color: C.cyan },
+              { label: "Promo Code Users", value: `${promoUsers.length}`, color: C.purple },
+              { label: "Admin Granted Access", value: `${adminGranted.length}`, color: C.orange },
+            ].map((item, i) => (
+              <div key={i} style={{ padding: "12px 16px", background: C.bg, borderRadius: 8, borderLeft: `3px solid ${item.color}` }}>
+                <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{item.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: item.color, fontFamily: "'Chakra Petch'" }}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
 
         {/* Search & Filter Bar */}
         <Card style={{ marginBottom: 16 }}>
@@ -3076,7 +3524,7 @@ function AdminDashboard({ user, onClose }) {
               <Input value={search} onChange={setSearch} placeholder="Search by name or email..." icon={<I.Search />} />
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              {[["all", "All"], ["paypal", "PayPal"], ["promo", "Promo"], ["admin_granted", "Granted"], ["none", "Inactive"]].map(([k, label]) => (
+              {[["all", "All"], ["paypal", "PayPal"], ["trial", "Trial"], ["promo", "Promo"], ["admin_granted", "Granted"], ["none", "Inactive"]].map(([k, label]) => (
                 <button key={k} onClick={() => setFilter(k)}
                   style={{ padding: "6px 14px", border: `1px solid ${filter === k ? C.green : C.border}`, borderRadius: 6, background: filter === k ? `${C.green}15` : "transparent", color: filter === k ? C.green : C.dim, fontSize: 11, fontFamily: "inherit", fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
                   {label}
@@ -3699,8 +4147,11 @@ export default function App() {
   // Admin bypass — developer always gets full access (no PayPal required)
   const isAdmin = import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
 
-  // Show subscription screen if user hasn't subscribed (admin bypasses this)
-  if (!isAdmin && subLoaded && (!subscription || subscription.status !== "active")) {
+  // Check if trial has expired
+  const trialExpired = subscription?.plan === "trial" && subscription?.trialEnds && new Date(subscription.trialEnds) < new Date();
+
+  // Show subscription screen if user hasn't subscribed or trial expired (admin bypasses this)
+  if (!isAdmin && subLoaded && (!subscription || subscription.status !== "active" || trialExpired)) {
     return <SubscriptionScreen user={user} onSubscribed={(sub) => setSubscription(sub)} onLogout={logout} />;
   }
 
@@ -3794,11 +4245,11 @@ export default function App() {
         {/* Company details */}
         <div style={{ textAlign:"center", maxWidth:680, margin:"0 auto" }}>
           <div style={{ marginBottom:4 }}>
-            <span style={{ color:C.bright, fontWeight:600 }}>{"\u00A9"} 2026 AgentsLock</span>
+            <span style={{ color:C.bright, fontWeight:600 }}>{"\u00A9"} 2026 Leffler International Investments</span>
             {" \u2014 "}All rights reserved.
           </div>
           <div style={{ color:C.dim, fontSize:10, marginTop:6, lineHeight:1.6 }}>
-            All trademarks and data belong to their respective owners. No reproduction without permission.
+            AgentsLock is a product of Leffler International Investments. All trademarks and data belong to their respective owners. No reproduction without permission.
             Informational only. No financial, legal, or tax advice. Markets involve risk and returns are not guaranteed.
             Past performance is not indicative of future results. See{" "}
             <button onClick={()=>setLegalPage("terms")} style={{ background:"none", border:"none", color:C.green, cursor:"pointer", fontSize:10, fontFamily:"inherit", padding:0, textDecoration:"underline" }}>Terms</button>.

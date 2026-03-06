@@ -1,7 +1,7 @@
 {
-  "name": "AgentsLock — Cybersecurity Dashboard",
+  "name": "AgentsLock — Personal Cybersecurity Platform",
   "short_name": "AgentsLock",
-  "description": "Personal Cybersecurity Dashboard. Protect your devices, accounts, and data. Detect breaches, analyze passwords, scan websites, harden devices, and respond to incidents.",
+  "description": "Personal Cybersecurity Platform by Leffler International Investments. Detect breaches, analyse passwords, scan websites, harden devices, monitor threats and respond to incidents. 14-day free trial.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
