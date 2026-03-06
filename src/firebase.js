@@ -203,3 +203,20 @@ export async function adminUpdateUser(uid, data) {
   if (!db) return;
   await setDoc(doc(db, "users", uid), data, { merge: true });
 }
+
+// ─── Self-service account deletion (user deletes own account) ─────────────
+export async function deleteOwnData(uid) {
+  if (!db) return;
+  await deleteDoc(doc(db, "users", uid));
+}
+
+export async function deleteOwnAccount() {
+  if (!auth?.currentUser) throw new Error("Not signed in");
+  const uid = auth.currentUser.uid;
+  // Delete Firestore data first
+  if (db) {
+    try { await deleteDoc(doc(db, "users", uid)); } catch (e) { console.error("Failed to delete Firestore data:", e); }
+  }
+  // Delete Firebase Auth account
+  await auth.currentUser.delete();
+}
