@@ -511,6 +511,8 @@ const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID;
 
 function SubscriptionScreen({ user, onSubscribed, onLogout }) {
   const paypalRef = useRef(null);
+  const userRef = useRef(user);
+  userRef.current = user;
   const [paypalReady, setPaypalReady] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
@@ -583,10 +585,12 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
 
   useEffect(() => {
     if (!paypalReady || !paypalRef.current) return;
+    let cancelled = false;
+
     // Clear any previous buttons
     paypalRef.current.innerHTML = "";
 
-    window.paypal.Buttons({
+    const buttons = window.paypal.Buttons({
       style: {
         shape: "rect",
         color: "gold",
@@ -598,11 +602,12 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
           plan_id: PAYPAL_PLAN_ID,
         }).catch(err => {
           console.error("PayPal createSubscription error:", err);
-          setError("Could not start checkout. Please refresh and try again.");
+          if (!cancelled) setError("Could not start checkout. Please refresh and try again.");
           throw err;
         });
       },
       onApprove: async (data) => {
+        if (cancelled) return;
         setProcessing(true);
         setError("");
         try {
@@ -615,19 +620,33 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
             subscribedAt: new Date().toISOString(),
             provider: "paypal",
           };
-          await saveSubscription(user.uid, subData);
+          await saveSubscription(userRef.current.uid, subData);
           onSubscribed(subData);
         } catch (e) {
-          setError("Failed to save subscription. Please try again or refresh the page.");
-          setProcessing(false);
+          if (!cancelled) {
+            setError("Failed to save subscription. Please try again or refresh the page.");
+            setProcessing(false);
+          }
         }
       },
       onError: (err) => {
-        setError("Payment failed. Please try again.");
-        console.error("PayPal error:", err);
+        if (!cancelled) {
+          setError("Payment failed. Please try again.");
+          console.error("PayPal error:", err);
+        }
       },
-    }).render(paypalRef.current);
-  }, [paypalReady, user?.uid]);
+    });
+
+    buttons.render(paypalRef.current).catch(err => {
+      // Ignore render errors from cleanup/re-render race conditions
+      if (!cancelled) console.error("PayPal render error:", err);
+    });
+
+    return () => {
+      cancelled = true;
+      try { buttons.close(); } catch (e) { /* already closed */ }
+    };
+  }, [paypalReady]);
 
   const features = [
     { icon: <I.Shield />, text: "Full Cybersecurity Dashboard" },
