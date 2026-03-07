@@ -642,10 +642,7 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
       if (!cancelled) console.error("PayPal render error:", err);
     });
 
-    return () => {
-      cancelled = true;
-      try { buttons.close(); } catch (e) { /* already closed */ }
-    };
+    return () => { cancelled = true; };
   }, [paypalReady]);
 
   const features = [
