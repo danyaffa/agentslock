@@ -596,6 +596,10 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
       createSubscription: (data, actions) => {
         return actions.subscription.create({
           plan_id: PAYPAL_PLAN_ID,
+        }).catch(err => {
+          console.error("PayPal createSubscription error:", err);
+          setError("Could not start checkout. Please refresh and try again.");
+          throw err;
         });
       },
       onApprove: async (data) => {
