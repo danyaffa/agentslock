@@ -506,8 +506,9 @@ function AuthScreen({ onLogin, onSignup, onGoogleLogin, threatStatus }) {
 // PayPal Integration — $18 USD/month
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const PAYPAL_PLAN_ID = import.meta.env.VITE_PAYPAL_PLAN_ID;
-const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+const PAYPAL_PLAN_ID = import.meta.env.VITE_PAYPAL_PLAN_ID || "";
+const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || "";
+const PAYPAL_CONFIG_OK = !!(PAYPAL_CLIENT_ID && PAYPAL_PLAN_ID);
 
 function SubscriptionScreen({ user, onSubscribed, onLogout }) {
   const paypalRef = useRef(null);
@@ -557,19 +558,23 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
   };
 
   useEffect(() => {
+    // Fail fast if PayPal env vars are missing
+    if (!PAYPAL_CONFIG_OK) {
+      console.error("[AgentsLock] PayPal configuration incomplete — VITE_PAYPAL_CLIENT_ID:", PAYPAL_CLIENT_ID ? "set" : "MISSING", "| VITE_PAYPAL_PLAN_ID:", PAYPAL_PLAN_ID ? "set" : "MISSING");
+      setError("PayPal is not configured. Please set VITE_PAYPAL_CLIENT_ID and VITE_PAYPAL_PLAN_ID in your environment variables and redeploy.");
+      return;
+    }
     // If PayPal SDK is already loaded, use it
     if (window.paypal) { setPaypalReady(true); return; }
     // Otherwise, load it dynamically (the HTML script tag may have failed due to env vars)
-    if (PAYPAL_CLIENT_ID) {
-      const existing = document.querySelector('script[src*="paypal.com/sdk"]');
-      if (!existing) {
-        const script = document.createElement("script");
-        script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&vault=true&intent=subscription`;
-        script.setAttribute("data-sdk-integration-source", "button-factory");
-        script.onload = () => setPaypalReady(true);
-        script.onerror = () => setError("Failed to load PayPal. Check your connection and refresh.");
-        document.head.appendChild(script);
-      }
+    const existing = document.querySelector('script[src*="paypal.com/sdk"]');
+    if (!existing) {
+      const script = document.createElement("script");
+      script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&vault=true&intent=subscription`;
+      script.setAttribute("data-sdk-integration-source", "button-factory");
+      script.onload = () => setPaypalReady(true);
+      script.onerror = () => setError("Failed to load PayPal SDK. Check your Client ID and internet connection, then refresh.");
+      document.head.appendChild(script);
     }
     // Poll as fallback (in case script was already loading from HTML)
     const checkPayPal = setInterval(() => {
@@ -598,11 +603,24 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
         label: "subscribe",
       },
       createSubscription: (data, actions) => {
+        if (!PAYPAL_PLAN_ID) {
+          const msg = "PayPal Plan ID is missing. Please set VITE_PAYPAL_PLAN_ID and redeploy.";
+          console.error("[AgentsLock]", msg);
+          setError(msg);
+          return Promise.reject(new Error(msg));
+        }
+        console.log("[AgentsLock] Creating subscription with plan:", PAYPAL_PLAN_ID);
         return actions.subscription.create({
           plan_id: PAYPAL_PLAN_ID,
         }).catch(err => {
-          console.error("PayPal createSubscription error:", err);
-          if (!cancelled) setError("Could not start checkout. Please refresh and try again.");
+          console.error("[AgentsLock] PayPal createSubscription error:", err);
+          const detail = err?.message || err?.details?.[0]?.description || "";
+          if (!cancelled) {
+            if (detail.toLowerCase().includes("invalid") || detail.toLowerCase().includes("plan"))
+              setError(`PayPal plan error: ${detail}. Verify VITE_PAYPAL_PLAN_ID is a valid, active plan ID that matches your Client ID environment (sandbox vs live).`);
+            else
+              setError(`Checkout failed: ${detail || "Unknown error"}. Please refresh and try again.`);
+          }
           throw err;
         });
       },
@@ -630,9 +648,10 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
         }
       },
       onError: (err) => {
+        console.error("[AgentsLock] PayPal onError:", err);
         if (!cancelled) {
-          setError("Payment failed. Please try again.");
-          console.error("PayPal error:", err);
+          const detail = err?.message || String(err);
+          setError(`Payment error: ${detail}. If this persists, verify your PayPal plan ID and client ID are valid and from the same environment (both sandbox or both live).`);
         }
       },
     });
@@ -729,6 +748,16 @@ function SubscriptionScreen({ user, onSubscribed, onLogout }) {
               <div style={{ textAlign: "center", padding: 20 }}>
                 <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.green, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
                 <div style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>Activating your subscription...</div>
+              </div>
+            ) : !PAYPAL_CONFIG_OK ? (
+              <div style={{ textAlign: "center", padding: 20 }}>
+                <I.Alert s={28} style={{ color: C.yellow, marginBottom: 8 }} />
+                <div style={{ color: C.yellow, fontSize: 13, fontWeight: 600, marginBottom: 6 }}>PayPal Not Configured</div>
+                <div style={{ color: C.dim, fontSize: 11 }}>
+                  {!PAYPAL_CLIENT_ID && <div>VITE_PAYPAL_CLIENT_ID is missing</div>}
+                  {!PAYPAL_PLAN_ID && <div>VITE_PAYPAL_PLAN_ID is missing</div>}
+                  <div style={{ marginTop: 6 }}>Add these to your Vercel environment variables and redeploy.</div>
+                </div>
               </div>
             ) : !paypalReady ? (
               <div style={{ textAlign: "center", padding: 20 }}>
